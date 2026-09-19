@@ -1,0 +1,4 @@
+# Build artefacts; `make` regenerates them.
+/bin/
+/nvim/parser/
+/nvim/queries/

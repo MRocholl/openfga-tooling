@@ -4,8 +4,8 @@ import (
 	"errors"
 	"path/filepath"
 
-	protocol "github.com/tliron/glsp/protocol_3_16"
 	"github.com/openfga/language/pkg/go/transformer"
+	protocol "github.com/tliron/glsp/protocol_3_16"
 )
 
 // ModEntry is one file listed under `contents:` in an fga.mod.

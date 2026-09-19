@@ -24,7 +24,9 @@ func NewIndex() *Index {
 
 // View is a read-locked window onto the index. Every query method lives here
 // so that a feature can ask several questions against one consistent state.
-type View struct{ docs map[protocol.DocumentUri]*Document }
+type View struct {
+	docs map[protocol.DocumentUri]*Document
+}
 
 func (ix *Index) Read(fn func(v *View)) {
 	ix.mu.RLock()

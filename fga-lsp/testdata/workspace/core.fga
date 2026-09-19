@@ -1,0 +1,9 @@
+# Entities every module shares.
+module core
+
+type user
+
+type organization
+  relations
+    define member: [user]
+    define admin: [user]

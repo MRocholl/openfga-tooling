@@ -78,8 +78,14 @@ func modelDiagnostics(view *analysis.View, doc *analysis.Document, result Result
 	// relation is exactly what a half-finished edit produces, and pointing at
 	// it is more useful than waiting for the file to become valid.
 	names := scopeOf(view, set.scoped())
+
+	// Names that resolution has already reported. The typesystem repeats them
+	// in its own words, and having no source position for an undefined
+	// relation, would pin the repeat to the top of the file.
+	covered := map[string]struct{}{}
+
 	for _, member := range set.docs {
-		referenceErrors(names, member, result)
+		referenceErrors(names, member, result, covered)
 	}
 
 	if syntaxBroken {
@@ -96,7 +102,7 @@ func modelDiagnostics(view *analysis.View, doc *analysis.Document, result Result
 	}
 
 	if _, err := typesystem.NewAndValidate(context.Background(), model); err != nil {
-		reportTypesystem(view, set, err, result)
+		reportTypesystem(view, set, err, covered, result)
 	}
 }
 
@@ -150,7 +156,7 @@ func syntaxErrors(doc *analysis.Document, result Result) bool {
 
 // referenceErrors checks every name a relation definition mentions against
 // the merged model, which is where the precise ranges come from.
-func referenceErrors(names scope, doc *analysis.Document, result Result) {
+func referenceErrors(names scope, doc *analysis.Document, result Result, covered map[string]struct{}) {
 	for _, typeDecl := range doc.Types {
 		seen := map[string]bool{}
 
@@ -166,8 +172,15 @@ func referenceErrors(names scope, doc *analysis.Document, result Result) {
 			seen[rel.Name] = true
 
 			for _, ref := range rel.Refs {
-				if message := resolveRef(names, typeDecl.Name, ref); message != "" {
-					result.add(doc.URI, diagnostic(ref.Range, message, protocol.DiagnosticSeverityError))
+				message := resolveRef(names, typeDecl.Name, ref)
+				if message == "" {
+					continue
+				}
+
+				result.add(doc.URI, diagnostic(ref.Range, message, protocol.DiagnosticSeverityError))
+
+				for _, key := range refKeys(names, typeDecl.Name, ref) {
+					covered[key] = struct{}{}
 				}
 			}
 		}
@@ -226,9 +239,19 @@ func resolveRef(names scope, enclosingType string, ref analysis.Ref) string {
 // reportTypesystem maps an openfga validation failure onto the declaration it
 // names. Anything already reported by name resolution is dropped, since that
 // pass underlines the offending word rather than the whole line.
-func reportTypesystem(view *analysis.View, set moduleSetInfo, err error, result Result) {
+func reportTypesystem(
+	view *analysis.View,
+	set moduleSetInfo,
+	err error,
+	covered map[string]struct{},
+	result Result,
+) {
 	for _, single := range flatten(err) {
 		objectType, relation := subject(single)
+
+		if _, ok := covered[subjectKey(objectType, relation)]; ok {
+			continue
+		}
 
 		var (
 			uri protocol.DocumentUri
@@ -324,16 +347,50 @@ func diagnostic(rng protocol.Range, message string, severity protocol.Diagnostic
 
 func duplicate(existing []protocol.Diagnostic, rng protocol.Range, message string) bool {
 	for _, d := range existing {
-		if d.Range == rng {
-			return true
-		}
-
-		if d.Message == message {
+		if d.Range == rng && d.Message == message {
 			return true
 		}
 	}
 
 	return false
+}
+
+// refKeys names what a failed reference was looking for, in the same terms
+// the typesystem reports its own failures in.
+func refKeys(names scope, enclosingType string, ref analysis.Ref) []string {
+	switch ref.Kind {
+	case analysis.RefType:
+		return []string{subjectKey(ref.Name, "")}
+
+	case analysis.RefRelationOnSelf:
+		return []string{subjectKey(enclosingType, ref.Name)}
+
+	case analysis.RefRelationOnType:
+		return []string{subjectKey(ref.OwnerType, ref.Name)}
+
+	case analysis.RefRelationViaTupleset:
+		targets := names.tuplesetTargets(enclosingType, ref.Tupleset)
+
+		keys := make([]string, 0, len(targets))
+		for _, target := range targets {
+			keys = append(keys, subjectKey(target, ref.Name))
+		}
+
+		return keys
+
+	case analysis.RefCondition:
+		return []string{"condition:" + ref.Name}
+	}
+
+	return nil
+}
+
+func subjectKey(objectType, relation string) string {
+	if relation == "" {
+		return objectType
+	}
+
+	return objectType + "#" + relation
 }
 
 // flatten unwraps the multi-error wrappers both libraries use.
@@ -381,4 +438,3 @@ func firstLine(s string) string {
 
 	return s
 }
-

@@ -5,9 +5,9 @@ import (
 	"strings"
 	"sync"
 
+	tsfga "github.com/mrocholl/tree-sitter-fga/bindings/go"
 	protocol "github.com/tliron/glsp/protocol_3_16"
 	ts "github.com/tree-sitter/go-tree-sitter"
-	tsfga "github.com/mrocholl/tree-sitter-fga/bindings/go"
 )
 
 // Kind tells the three file shapes apart. They share a workspace and refer to
@@ -15,10 +15,10 @@ import (
 type Kind int
 
 const (
-	KindUnknown Kind = iota
-	KindModel        // *.fga
-	KindStoreTest    // *.fga.yaml
-	KindModFile      // fga.mod
+	KindUnknown   Kind = iota
+	KindModel          // *.fga
+	KindStoreTest      // *.fga.yaml
+	KindModFile        // fga.mod
 )
 
 func KindOf(path string) Kind {

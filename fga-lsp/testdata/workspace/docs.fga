@@ -1,0 +1,14 @@
+module docs
+
+extend type organization
+  relations
+    # only an admin may start a new document
+    define can_create_document: admin
+
+type document
+  relations
+    define organization: [organization]
+    define owner: [user]
+    define viewer: [user, user:*, organization#member] or owner
+    define can_edit: owner or admin from organization
+    define can_view: can_edit or viewer

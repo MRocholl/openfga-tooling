@@ -1,0 +1,10 @@
+model
+  schema 1.1
+
+type user
+
+type document
+  relations
+    define owner: [user]
+    define can_edit: owner or editor
+    define can_view: can_edit or member from organization

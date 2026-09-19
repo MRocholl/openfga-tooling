@@ -1,0 +1,41 @@
+name: document access
+model_file: ./fga.mod
+
+tuples:
+  - user: user:alice
+    relation: admin
+    object: organization:acme
+  - user: organization:acme
+    relation: organization
+    object: document:roadmap
+  - user: user:bob
+    relation: owner
+    object: document:roadmap
+
+tests:
+  - name: the admin can edit any document in the organization
+    check:
+      - user: user:alice
+        object: document:roadmap
+        assertions:
+          can_edit: true
+          can_view: true
+      - user: user:bob
+        object: document:roadmap
+        assertions:
+          can_edit: true
+    list_objects:
+      - user: user:alice
+        type: document
+        assertions:
+          can_view:
+            - document:roadmap
+    list_users:
+      - object: document:roadmap
+        user_filter:
+          - type: user
+        assertions:
+          can_edit:
+            users:
+              - user:alice
+              - user:bob

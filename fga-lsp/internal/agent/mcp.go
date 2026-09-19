@@ -8,6 +8,9 @@ import (
 )
 
 // ServeMCP answers agent queries about the workspace over stdio.
+//
+// Every tool renders in the agent format: one finding per line, complete
+// unless a limit asked otherwise. Nothing here is read by a person.
 func ServeMCP(ctx context.Context, w *Workspace, version string) error {
 	server := mcp.NewServer(&mcp.Implementation{Name: "fga", Version: version}, nil)
 
@@ -26,6 +29,11 @@ type checkInput struct {
 
 type nameInput struct {
 	Name string `json:"name" jsonschema:"a type like 'document', or a relation like 'document#can_view'"`
+}
+
+type referencesInput struct {
+	Name  string `json:"name" jsonschema:"a type like 'document', or a relation like 'document#can_view'"`
+	Limit int    `json:"limit,omitempty" jsonschema:"cap the number of results; omit for all of them, which is the safe choice before changing a relation"`
 }
 
 type typeInput struct {
@@ -49,7 +57,7 @@ func register(server *mcp.Server, w *Workspace) {
 	}, func(_ context.Context, _ *mcp.CallToolRequest, in checkInput) (*mcp.CallToolResult, any, error) {
 		w.Reload()
 
-		return text(w.Check(in.File)), nil, nil
+		return text(RenderCheck(w.CheckWorkspace(in.File), FormatAgent)), nil, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -74,21 +82,22 @@ func register(server *mcp.Server, w *Workspace) {
 		Name:        "fga_definition",
 		Description: "Show where a type or relation is defined, with the surrounding lines.",
 	}, func(_ context.Context, _ *mcp.CallToolRequest, in nameInput) (*mcp.CallToolResult, any, error) {
-		return text(w.Definition(in.Name)), nil, nil
+		return text(RenderDefinition(w.FindDefinition(in.Name), FormatAgent)), nil, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "fga_references",
 		Description: "Find every use of a type or relation, in models and in .fga.yaml store tests. " +
-			"Use before changing or removing one.",
-	}, func(_ context.Context, _ *mcp.CallToolRequest, in nameInput) (*mcp.CallToolResult, any, error) {
-		return text(w.References(in.Name)), nil, nil
+			"Use before changing or removing one. Each line is " +
+			"path:line:column: kind: source, where kind is definition, use or test.",
+	}, func(_ context.Context, _ *mcp.CallToolRequest, in referencesInput) (*mcp.CallToolResult, any, error) {
+		return text(RenderReferences(w.FindReferences(in.Name, in.Limit), FormatAgent)), nil, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "fga_search",
 		Description: "Find type, relation and condition names matching a query.",
 	}, func(_ context.Context, _ *mcp.CallToolRequest, in queryInput) (*mcp.CallToolResult, any, error) {
-		return text(w.Search(in.Query)), nil, nil
+		return text(RenderSearch(w.FindSymbols(in.Query, 0), FormatAgent)), nil, nil
 	})
 }

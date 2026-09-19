@@ -1,7 +1,9 @@
 package agent_test
 
 import (
+	"encoding/json"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 
@@ -73,7 +75,7 @@ func TestDefinitionOfABareRelationNameOffersItsTypes(t *testing.T) {
 	// bridge that rather than report a miss.
 	got := open(t, "workspace").Definition("can_edit")
 
-	mustContain(t, got, "is a relation on", "document#can_edit")
+	mustContain(t, got, "is a relation", "document#can_edit")
 }
 
 func TestUnknownNameSuggestsTheNearest(t *testing.T) {
@@ -117,19 +119,108 @@ func TestSearchMatchesLoosely(t *testing.T) {
 	mustContain(t, open(t, "workspace").Search("cnedt"), "can_edit")
 }
 
-func TestRunRereadsTheWorkspace(t *testing.T) {
+// ---------------------------------------------------------------- formats
+
+func TestAgentFormatIsOneFindingPerLine(t *testing.T) {
 	t.Parallel()
 
-	// The shell commands are one-shot processes, but MCP is not: a workspace
-	// answering a second query must not answer from a stale scan.
-	w := open(t, "workspace")
+	got := agent.RenderCheck(open(t, "broken").CheckWorkspace(""), agent.FormatAgent)
 
-	first := w.Run(func(w *agent.Workspace, arg string) string { return w.Check(arg) }, "")
-	second := w.Run(func(w *agent.Workspace, arg string) string { return w.Check(arg) }, "")
+	for _, line := range strings.Split(strings.TrimSpace(got), "\n") {
+		if strings.HasSuffix(line, "problems") {
+			continue
+		}
 
-	if first != second {
-		t.Errorf("a repeated query changed answer:\n%s\n---\n%s", first, second)
+		// path:line:column: severity: message, the shape a compiler emits and
+		// every editor and agent already parses.
+		if parts := strings.SplitN(line, ": ", 3); len(parts) != 3 ||
+			strings.Count(parts[0], ":") != 2 {
+			t.Errorf("not in path:line:col: severity: message form: %q", line)
+		}
 	}
 
-	mustContain(t, second, "No problems.")
+	mustContain(t, got, "model.fga:9:31: error: the relation `editor` does not exist.", "5 problems")
+}
+
+func TestAgentReferencesAreFlatCompleteAndLabelled(t *testing.T) {
+	t.Parallel()
+
+	result := open(t, "workspace").FindReferences("document#can_edit", 0)
+	got := agent.RenderReferences(result, agent.FormatAgent)
+
+	if result.Omitted != 0 {
+		t.Errorf("expected nothing dropped without a limit, %d omitted", result.Omitted)
+	}
+
+	// Kind is what decides whether an agent may edit a line: a definition is
+	// the thing itself, a test is an assertion about it.
+	mustContain(t, got, ": definition: ", ": use: ", ": test: ")
+
+	lines := strings.Split(strings.TrimSpace(got), "\n")
+	if summary := lines[len(lines)-1]; !strings.Contains(summary, "references in") {
+		t.Errorf("expected a count on the last line, got %q", summary)
+	}
+
+	// Sorted by path then line, so two runs are diffable.
+	if !sort.SliceIsSorted(result.References, func(i, j int) bool {
+		a, b := result.References[i], result.References[j]
+		if a.Path != b.Path {
+			return a.Path < b.Path
+		}
+
+		return a.Line < b.Line
+	}) {
+		t.Error("references are not in a stable order")
+	}
+}
+
+func TestLimitReportsWhatItDropped(t *testing.T) {
+	t.Parallel()
+
+	full := open(t, "workspace").FindReferences("document#can_edit", 0)
+
+	limited := open(t, "workspace").FindReferences("document#can_edit", 1)
+	if len(limited.References) != 1 {
+		t.Fatalf("expected 1 reference, got %d", len(limited.References))
+	}
+
+	if want := full.Total - 1; limited.Omitted != want {
+		t.Errorf("expected %d omitted, got %d", want, limited.Omitted)
+	}
+
+	mustContain(t, agent.RenderReferences(limited, agent.FormatAgent), "omitted by --limit")
+}
+
+func TestJSONFormatRoundTrips(t *testing.T) {
+	t.Parallel()
+
+	raw := agent.RenderCheck(open(t, "broken").CheckWorkspace(""), agent.FormatJSON)
+
+	var decoded agent.CheckResult
+	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
+		t.Fatalf("output is not valid JSON: %v\n%s", err, raw)
+	}
+
+	if len(decoded.Problems) != 5 {
+		t.Errorf("expected 5 problems, got %d", len(decoded.Problems))
+	}
+
+	first := decoded.Problems[0]
+	if first.Line < 1 || first.Column < 1 {
+		t.Errorf("expected one-based positions, got %d:%d", first.Line, first.Column)
+	}
+}
+
+func TestParseFormatRejectsUnknown(t *testing.T) {
+	t.Parallel()
+
+	for _, name := range []string{"text", "agent", "json"} {
+		if _, ok := agent.ParseFormat(name); !ok {
+			t.Errorf("%s should be a format", name)
+		}
+	}
+
+	if _, ok := agent.ParseFormat("yaml"); ok {
+		t.Error("yaml should not be a format")
+	}
 }

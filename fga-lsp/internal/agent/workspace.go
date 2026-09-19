@@ -147,63 +147,7 @@ func (w *Workspace) Describe(name string) string {
 
 // Definition locates where a name is defined.
 func (w *Workspace) Definition(name string) string {
-	typeName, relation := splitName(name)
-
-	var b strings.Builder
-
-	w.index.Read(func(v *analysis.View) {
-		scope := w.scope(v)
-
-		if relation == "" {
-			decls := scope.TypeDecls(typeName)
-			if len(decls) == 0 {
-				// A bare name may well be a relation; look for it anywhere
-				// before giving up, since that is how an agent quotes one.
-				if hits := w.relationsNamed(scope, typeName); hits != "" {
-					b.WriteString(hits)
-
-					return
-				}
-
-				b.WriteString(w.notFound(scope, typeName))
-
-				return
-			}
-
-			fmt.Fprintf(&b, "Definition of `%s` (%d):\n", typeName, len(decls))
-
-			for _, decl := range decls {
-				doc := v.Get(decl.URI)
-				fmt.Fprintf(&b, "\n%s\n%s", at(w.root, analysis.PathFromURI(decl.URI), decl.NameRange),
-					excerpt(doc, decl.Range, false))
-			}
-
-			return
-		}
-
-		decls := scope.RelationDecls(typeName, relation)
-		if len(decls) == 0 {
-			b.WriteString(w.notFound(scope, name))
-
-			return
-		}
-
-		fmt.Fprintf(&b, "Definition of `%s`:\n", qualify(typeName, relation))
-
-		for _, decl := range decls {
-			doc := v.Get(decl.URI)
-
-			fmt.Fprintf(&b, "\n%s\n", at(w.root, analysis.PathFromURI(decl.URI), decl.NameRange))
-
-			if decl.Doc != "" {
-				b.WriteString(indentDoc(decl.Doc) + "\n")
-			}
-
-			b.WriteString(excerpt(doc, decl.Range, false))
-		}
-	})
-
-	return b.String()
+	return RenderDefinition(w.FindDefinition(name), FormatText)
 }
 
 // relationsNamed answers a bare relation name by listing the types that
@@ -256,12 +200,4 @@ func indentDoc(doc string) string {
 	}
 
 	return b.String()
-}
-
-// Run answers one query, re-reading the workspace first so a shell command
-// never reports a stale model.
-func (w *Workspace) Run(query func(*Workspace, string) string, arg string) string {
-	w.Reload()
-
-	return query(w, arg)
 }

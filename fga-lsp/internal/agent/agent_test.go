@@ -116,3 +116,20 @@ func TestSearchMatchesLoosely(t *testing.T) {
 
 	mustContain(t, open(t, "workspace").Search("cnedt"), "can_edit")
 }
+
+func TestRunRereadsTheWorkspace(t *testing.T) {
+	t.Parallel()
+
+	// The shell commands are one-shot processes, but MCP is not: a workspace
+	// answering a second query must not answer from a stale scan.
+	w := open(t, "workspace")
+
+	first := w.Run(func(w *agent.Workspace, arg string) string { return w.Check(arg) }, "")
+	second := w.Run(func(w *agent.Workspace, arg string) string { return w.Check(arg) }, "")
+
+	if first != second {
+		t.Errorf("a repeated query changed answer:\n%s\n---\n%s", first, second)
+	}
+
+	mustContain(t, second, "No problems.")
+}

@@ -12,7 +12,9 @@ fga-lsp                            # speaks LSP over stdin/stdout
 stdout carries the protocol. `-tcp <addr>` serves over TCP instead.
 
 ```sh
-fga-lsp mcp <dir>   # the same analysis as MCP tools, for an agent
+fga-lsp check -C <dir>   # the same analysis from a shell; exits 1 on findings
+fga-lsp mcp <dir>        # the same analysis as MCP tools
+fga-lsp help             # every query
 ```
 
 See [../docs/agent-api.md](../docs/agent-api.md).

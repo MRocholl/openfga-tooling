@@ -1,7 +1,22 @@
 # Agent API
 
-`fga-lsp mcp [dir]` serves the same analysis as the language server over MCP,
-for Claude Code and any other MCP client.
+The same analysis the language server provides, reachable two ways:
+
+```sh
+fga-lsp check -C database/authz          # a shell command
+fga-lsp mcp database/authz               # MCP over stdin/stdout
+```
+
+## Which one
+
+**Prefer the shell commands.** An agent with a shell already has them: no
+configuration, no server process, and nothing sitting in the context window
+until the moment a query is made. They pipe, they compose, and `check` exits
+non-zero when it found something, so the same call works in CI.
+
+MCP earns its place where there is no shell — Claude Desktop, the web app,
+other MCP clients — and where per-tool permissions are wanted. Both run the
+same code over the same workspace; only the transport differs.
 
 ## Why it is not a thin LSP wrapper
 
@@ -26,16 +41,19 @@ lines are one-based, so an agent can quote a location straight into a reply or
 paste it into an editor. Excerpts come with the answer, which saves the agent
 a follow-up read of the file.
 
-## Tools
+## Queries
 
-| Tool | Answers |
-| --- | --- |
-| `fga_check` | is the model valid, and if not, where exactly |
-| `fga_overview` | what is in this workspace |
-| `fga_describe` | what relations does this type have, merged across modules |
-| `fga_definition` | where is this name defined |
-| `fga_references` | what uses this name, models and store tests alike |
-| `fga_search` | which names look like this |
+| Shell | MCP tool | Answers |
+| --- | --- | --- |
+| `check [file]` | `fga_check` | is the model valid, and if not, where exactly |
+| `overview` | `fga_overview` | what is in this workspace |
+| `describe <type>` | `fga_describe` | what relations does this type have, merged across modules |
+| `definition <name>` | `fga_definition` | where is this name defined |
+| `references <name>` | `fga_references` | what uses this name, models and store tests alike |
+| `search <query>` | `fga_search` | which names look like this |
+
+Every shell command takes `-C <dir>` to pick the workspace, defaulting to the
+current directory. `check` exits 1 when it reports something, 0 when clean.
 
 ## Compaction
 

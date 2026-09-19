@@ -257,3 +257,11 @@ func indentDoc(doc string) string {
 
 	return b.String()
 }
+
+// Run answers one query, re-reading the workspace first so a shell command
+// never reports a stale model.
+func (w *Workspace) Run(query func(*Workspace, string) string, arg string) string {
+	w.Reload()
+
+	return query(w, arg)
+}

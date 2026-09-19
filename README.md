@@ -19,8 +19,9 @@ schema 1.2. This repository covers both gaps in a form any editor can use.
 Beyond editors, the same analysis is served to agents:
 
 ```sh
-fga-lsp             # LSP over stdin/stdout, for an editor
-fga-lsp mcp <dir>   # MCP over stdin/stdout, for Claude Code and friends
+fga-lsp                      # LSP over stdin/stdout, for an editor
+fga-lsp check -C <dir>       # a shell command, for an agent or for CI
+fga-lsp mcp <dir>            # MCP, for a host without a shell
 ```
 
 The agent tools are name-addressed rather than position-addressed, because an

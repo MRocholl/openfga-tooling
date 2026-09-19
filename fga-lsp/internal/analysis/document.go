@@ -5,7 +5,7 @@ import (
 	"strings"
 	"sync"
 
-	tsfga "github.com/mrocholl/tree-sitter-fga/bindings/go"
+	tsfga "github.com/MRocholl/openfga-tooling/tree-sitter-fga/bindings/go"
 	protocol "github.com/tliron/glsp/protocol_3_16"
 	ts "github.com/tree-sitter/go-tree-sitter"
 )

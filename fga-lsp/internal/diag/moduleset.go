@@ -9,7 +9,7 @@ import (
 	"github.com/openfga/language/pkg/go/transformer"
 	protocol "github.com/tliron/glsp/protocol_3_16"
 
-	"github.com/mrocholl/fga-lsp/internal/analysis"
+	"github.com/MRocholl/openfga-tooling/fga-lsp/internal/analysis"
 )
 
 // moduleSetInfo is the unit the reference transformer works on.

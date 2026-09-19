@@ -6,7 +6,7 @@ import (
 
 	protocol "github.com/tliron/glsp/protocol_3_16"
 
-	"github.com/mrocholl/fga-lsp/internal/analysis"
+	"github.com/MRocholl/openfga-tooling/fga-lsp/internal/analysis"
 )
 
 // Hover explains what is under the cursor.

@@ -11,7 +11,7 @@ import (
 
 	_ "github.com/tliron/commonlog/simple"
 
-	"github.com/mrocholl/fga-lsp/internal/server"
+	"github.com/MRocholl/openfga-tooling/fga-lsp/internal/server"
 )
 
 func main() {

@@ -3,7 +3,7 @@ package diag
 import (
 	"sort"
 
-	"github.com/mrocholl/fga-lsp/internal/analysis"
+	"github.com/MRocholl/openfga-tooling/fga-lsp/internal/analysis"
 )
 
 // scope is the set of model documents a name is resolved against.

@@ -6,7 +6,7 @@ import (
 	protocol "github.com/tliron/glsp/protocol_3_16"
 	ts "github.com/tree-sitter/go-tree-sitter"
 
-	"github.com/mrocholl/fga-lsp/internal/analysis"
+	"github.com/MRocholl/openfga-tooling/fga-lsp/internal/analysis"
 )
 
 const (

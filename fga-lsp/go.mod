@@ -1,9 +1,9 @@
-module github.com/mrocholl/fga-lsp
+module github.com/MRocholl/openfga-tooling/fga-lsp
 
 go 1.25.7
 
 require (
-	github.com/mrocholl/tree-sitter-fga v0.0.0
+	github.com/MRocholl/openfga-tooling/tree-sitter-fga v0.0.0
 	github.com/openfga/api/proto v0.0.0-20260319214821-f153694bfc20
 	github.com/openfga/language/pkg/go v0.3.2-0.20260818192608-0d2ad7fb7c40
 	github.com/openfga/openfga v1.20.0
@@ -79,4 +79,4 @@ require (
 	google.golang.org/protobuf v1.36.12 // indirect
 )
 
-replace github.com/mrocholl/tree-sitter-fga => ../tree-sitter-fga
+replace github.com/MRocholl/openfga-tooling/tree-sitter-fga => ../tree-sitter-fga

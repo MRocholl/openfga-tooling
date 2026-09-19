@@ -1,4 +1,4 @@
-module github.com/mrocholl/tree-sitter-fga
+module github.com/MRocholl/openfga-tooling/tree-sitter-fga
 
 go 1.25
 

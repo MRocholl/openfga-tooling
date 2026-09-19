@@ -22,6 +22,9 @@ const (
 	RefRelationViaTupleset
 	// RefRelationOnType is the `member` in `[team#member]`.
 	RefRelationOnType
+	// RefTupleset is the `parent` in `viewer from parent`: a relation of the
+	// enclosing type, but one that has to be directly assignable.
+	RefTupleset
 	RefCondition
 )
 
@@ -37,6 +40,20 @@ type Ref struct {
 	Range     protocol.Range
 	StartByte uint
 	EndByte   uint
+
+	// Text and OuterRange describe the whole construct the name sits in --
+	// `group#member` rather than `group`, `viewer from parent` rather than
+	// `viewer`. Upstream reports several errors against the construct, not
+	// the word.
+	Text       string
+	OuterRange protocol.Range
+}
+
+// Partial is one operand of a relation's top-level `or`, `and` or `but not`.
+// A relation with no operator has exactly one.
+type Partial struct {
+	Text  string
+	Range protocol.Range
 }
 
 // RelationDecl is a single `define` line.
@@ -50,7 +67,15 @@ type RelationDecl struct {
 	Doc       string
 	Expr      string
 
-	Refs []Ref
+	// DirectOnly marks a relation that can legally appear on the right of
+	// `from`: defined by a type restriction alone, and restricted to plain
+	// types. A userset (`folder#parent`) or a wildcard (`folder:*`) in that
+	// list disqualifies it, because a tupleset has to name objects to walk
+	// to, not sets of users.
+	DirectOnly bool
+
+	Partials []Partial
+	Refs     []Ref
 }
 
 // TypeDecl is one `type X` or `extend type X` block. A type may be declared
@@ -91,6 +116,8 @@ type ConditionDecl struct {
 // Extract walks a parsed model document and fills in its symbols.
 func Extract(doc *Document) {
 	doc.Module = ""
+	doc.Schema = ""
+	doc.HasHeader = false
 	doc.Types = nil
 	doc.Conds = nil
 
@@ -106,6 +133,13 @@ func Extract(doc *Document) {
 		switch child.Kind() {
 		case "module_header":
 			doc.Module = doc.Text(child.ChildByFieldName("name"))
+		case "model_header":
+			doc.HasHeader = true
+
+			if version := child.ChildByFieldName("version"); version != nil {
+				doc.Schema = doc.Text(version)
+				doc.SchemaRange = doc.Lines.NodeRange(version)
+			}
 		case "type_definition":
 			doc.Types = append(doc.Types, extractType(doc, &child))
 		case "condition":
@@ -161,10 +195,62 @@ func extractRelation(doc *Document, n *ts.Node, typeName string) *RelationDecl {
 	}
 
 	if value != nil {
+		rel.DirectOnly = value.Kind() == "direct_assignment" && onlyPlainTypes(value)
+		rel.Partials = collectPartials(doc, value)
+
 		collectRefs(doc, value, &rel.Refs)
 	}
 
 	return rel
+}
+
+// onlyPlainTypes reports whether every restriction in a direct assignment
+// names a bare type.
+func onlyPlainTypes(assignment *ts.Node) bool {
+	cursor := assignment.Walk()
+	defer cursor.Close()
+
+	for _, child := range assignment.NamedChildren(cursor) {
+		if child.Kind() != "type_restriction" {
+			continue
+		}
+
+		if childOfKind(&child, "wildcard") != nil || childOfKind(&child, "relation_suffix") != nil {
+			return false
+		}
+	}
+
+	return true
+}
+
+// collectPartials splits a relation's right-hand side at its top-level
+// operator. `a or b or c` yields three; `a` yields one.
+func collectPartials(doc *Document, value *ts.Node) []Partial {
+	switch value.Kind() {
+	case "union", "intersection", "exclusion":
+		cursor := value.Walk()
+		defer cursor.Close()
+
+		var out []Partial
+
+		for _, child := range value.NamedChildren(cursor) {
+			if child.Kind() == "but_not" || child.Kind() == "comment" {
+				continue
+			}
+
+			out = append(out, Partial{
+				Text:  strings.TrimSpace(doc.Text(&child)),
+				Range: doc.Lines.NodeRange(&child),
+			})
+		}
+
+		return out
+	}
+
+	return []Partial{{
+		Text:  strings.TrimSpace(doc.Text(value)),
+		Range: doc.Lines.NodeRange(value),
+	}}
 }
 
 // collectRefs walks a relation's right-hand side and records every name that
@@ -178,26 +264,38 @@ func collectRefs(doc *Document, n *ts.Node, out *[]Ref) {
 
 	case "tupleset_relation":
 		tupleset := n.ChildByFieldName("tupleset")
+		outer := doc.Lines.NodeRange(n)
+		text := doc.Text(n)
 
 		appendRef(doc, out, Ref{
-			Kind:     RefRelationViaTupleset,
-			Tupleset: doc.Text(tupleset),
+			Kind:       RefRelationViaTupleset,
+			Tupleset:   doc.Text(tupleset),
+			Text:       text,
+			OuterRange: outer,
 		}, n.ChildByFieldName("relation"))
 
-		appendRef(doc, out, Ref{Kind: RefRelationOnSelf}, tupleset)
+		appendRef(doc, out, Ref{
+			Kind:       RefTupleset,
+			Text:       text,
+			OuterRange: outer,
+		}, tupleset)
 
 		return
 
 	case "type_restriction":
 		typeNode := n.ChildByFieldName("type")
 		typeName := doc.Text(typeNode)
+		outer := doc.Lines.NodeRange(n)
+		text := doc.Text(n)
 
-		appendRef(doc, out, Ref{Kind: RefType}, typeNode)
+		appendRef(doc, out, Ref{Kind: RefType, Text: text, OuterRange: outer}, typeNode)
 
 		if suffix := childOfKind(n, "relation_suffix"); suffix != nil {
 			appendRef(doc, out, Ref{
-				Kind:      RefRelationOnType,
-				OwnerType: typeName,
+				Kind:       RefRelationOnType,
+				OwnerType:  typeName,
+				Text:       text,
+				OuterRange: outer,
 			}, suffix.ChildByFieldName("relation"))
 		}
 
@@ -226,6 +324,11 @@ func appendRef(doc *Document, out *[]Ref, ref Ref, n *ts.Node) {
 	ref.Name = doc.Text(n)
 	ref.Range = doc.Lines.NodeRange(n)
 	ref.StartByte, ref.EndByte = n.ByteRange()
+
+	if ref.Text == "" {
+		ref.Text = ref.Name
+		ref.OuterRange = ref.Range
+	}
 
 	*out = append(*out, ref)
 }
@@ -285,6 +388,12 @@ func leadingComment(doc *Document, n *ts.Node) string {
 			break
 		}
 
+		// A comment trailing code on the line above documents that line, not
+		// this one. Only a comment that opens its line is a doc comment.
+		if !opensLine(doc, prev) {
+			break
+		}
+
 		text := doc.Text(prev)
 		text = strings.TrimPrefix(text, "#")
 		lines = append([]string{strings.TrimSpace(text)}, lines...)
@@ -292,6 +401,24 @@ func leadingComment(doc *Document, n *ts.Node) string {
 	}
 
 	return strings.TrimSpace(strings.Join(lines, "\n"))
+}
+
+// opensLine reports whether n is the first non-space thing on its line.
+func opensLine(doc *Document, n *ts.Node) bool {
+	line := doc.Lines.LineBytes(int(n.StartPosition().Row))
+
+	column := int(n.StartPosition().Column)
+	if column > len(line) {
+		return false
+	}
+
+	for _, b := range line[:column] {
+		if b != ' ' && b != '\t' {
+			return false
+		}
+	}
+
+	return true
 }
 
 func childOfKind(n *ts.Node, kind string) *ts.Node {

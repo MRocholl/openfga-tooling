@@ -50,7 +50,10 @@ func ParseModFile(doc *Document) *ModFile {
 				mod.Errors = append(mod.Errors, ModError{Message: e.Error()})
 			}
 		} else {
-			mod.Errors = append(mod.Errors, ModError{Message: err.Error()})
+			mod.Errors = append(mod.Errors, ModError{
+				Message: err.Error(),
+				Range:   doc.Lines.LineRange(0),
+			})
 		}
 	}
 
@@ -92,15 +95,31 @@ func pointRange(lines *LineIndex, line, column int) protocol.Range {
 // valueRange locates value within the given line, so a diagnostic underlines
 // the entry rather than the whole line.
 func valueRange(lines *LineIndex, line int, value string) protocol.Range {
+	return valueRangeFrom(lines, line, 0, value)
+}
+
+// valueRangeFrom is valueRange, searching from a known column so that a
+// repeated substring earlier on the line is not matched instead.
+func valueRangeFrom(lines *LineIndex, line, from int, value string) protocol.Range {
 	if line < 0 || value == "" {
 		return lines.LineRange(max(line, 0))
 	}
 
 	content := lines.LineBytes(line)
 
-	offset := indexBytes(content, value)
+	if from < 0 || from > len(content) {
+		from = 0
+	}
+
+	offset := indexBytes(content[from:], value)
 	if offset < 0 {
-		return lines.LineRange(line)
+		// The hint was wrong -- a multi-line scalar, say. Fall back to the
+		// whole line rather than to a confidently wrong span.
+		if offset = indexBytes(content, value); offset < 0 {
+			return lines.LineRange(line)
+		}
+	} else {
+		offset += from
 	}
 
 	return protocol.Range{

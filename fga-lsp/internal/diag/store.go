@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/openfga/language/pkg/go/validation"
 	protocol "github.com/tliron/glsp/protocol_3_16"
@@ -31,6 +30,10 @@ func storeDiagnostics(view *analysis.View, doc *analysis.Document, result Result
 	if !ok {
 		return
 	}
+
+	// An inline model is parsed for this call alone; its tree is C memory
+	// that nothing else will free.
+	defer names.close()
 
 	checker := storeChecker{doc: doc, names: names, result: result}
 
@@ -70,9 +73,17 @@ func storeScope(view *analysis.View, doc *analysis.Document, result Result) (sco
 			return scope{}, false
 		}
 
-		inline := analysis.Analyze(doc.URI+"#model", doc.Version, []byte(store.InlineModel))
+		// The kind has to be stated: the block has no file name of its own,
+		// and anything derived from the store's own URI would be read back as
+		// a store test, leaving every type in it undeclared.
+		inline := analysis.AnalyzeAs(
+			doc.URI+"#model",
+			doc.Version,
+			[]byte(store.InlineModel),
+			analysis.KindModel,
+		)
 
-		return scope{docs: []*analysis.Document{inline}}, true
+		return scope{docs: []*analysis.Document{inline}, transient: inline}, true
 	}
 
 	if _, err := os.Stat(store.ModelPath); err != nil {
@@ -361,14 +372,6 @@ func modDiagnostics(view *analysis.View, doc *analysis.Document, result Result) 
 			))
 
 			continue
-		}
-
-		if !strings.HasSuffix(entry.Value, ".fga") {
-			result.add(doc.URI, diagnostic(
-				entry.Range,
-				fmt.Sprintf("%q is not a .fga module file", entry.Value),
-				protocol.DiagnosticSeverityWarning,
-			))
 		}
 
 		result.touch(analysis.URIFromPath(entry.Path))

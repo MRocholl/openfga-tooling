@@ -116,7 +116,9 @@ func (d *Document) parseStoreMapping(store *StoreTest, mapping *yaml.Node) {
 			store.ModelFile = d.field(value)
 		case "model":
 			store.InlineModel = value.Value
-			store.InlineModelLine = value.Line - 1
+			// yaml.v3 reports the line of the `|` indicator; the block's
+			// content starts on the next one.
+			store.InlineModelLine = value.Line
 		case "tuples":
 			store.Tuples = d.tuples(value)
 		case "tests":
@@ -195,7 +197,7 @@ func (d *Document) checks(seq *yaml.Node) []Check {
 				forEachPair(value, func(relation string, expected *yaml.Node) {
 					check.Assertions = append(check.Assertions, Assertion{
 						Relation: Field{Value: relation, Range: d.keyRange(value, relation)},
-						Expected: expected.Value == "true",
+						Expected: yamlTrue(expected),
 					})
 				})
 			}
@@ -307,9 +309,15 @@ func (d *Document) fields(seq *yaml.Node) []Field {
 	return out
 }
 
-// scalarRange locates a scalar's text on its line. yaml.v3 reports a column,
-// but it counts differently across quoting styles, so the value is searched
-// for instead; that also lands inside the quotes rather than on them.
+// scalarRange locates a scalar's text on its line.
+//
+// The search starts at the column yaml.v3 reports rather than at the start of
+// the line, because a flow mapping puts several scalars on one line and a
+// name that is a suffix of an earlier one would otherwise underline the wrong
+// text: in `{can_read: true, read: true}` a search for `read` finds the one
+// inside `can_read`. The reported column points at the opening quote for a
+// quoted scalar, so searching from there rather than taking it literally
+// lands inside the quotes either way.
 func (d *Document) scalarRange(node *yaml.Node) protocol.Range {
 	line := node.Line - 1
 	if line < 0 {
@@ -320,7 +328,7 @@ func (d *Document) scalarRange(node *yaml.Node) protocol.Range {
 		return d.Lines.LineRange(line)
 	}
 
-	return valueRange(d.Lines, line, node.Value)
+	return valueRangeFrom(d.Lines, line, max(node.Column-1, 0), node.Value)
 }
 
 // keyRange finds a mapping key inside its own mapping node.
@@ -366,6 +374,21 @@ func lastLine(node *yaml.Node) int {
 	}
 
 	return line
+}
+
+// yamlTrue reads a YAML 1.1 boolean, which admits more spellings than Go's
+// strconv does.
+func yamlTrue(node *yaml.Node) bool {
+	if node == nil {
+		return false
+	}
+
+	switch strings.ToLower(node.Value) {
+	case "true", "yes", "on", "y":
+		return true
+	}
+
+	return false
 }
 
 // SplitTupleUser breaks `user:alice#member` into its object and optional

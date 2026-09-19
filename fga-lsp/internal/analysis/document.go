@@ -49,8 +49,13 @@ type Document struct {
 	// Model documents only.
 	Tree   *ts.Tree
 	Module string
-	Types  []*TypeDecl
-	Conds  []*ConditionDecl
+	// Schema and SchemaRange come from a `model` header. HasHeader
+	// distinguishes a missing header from a malformed one.
+	Schema      string
+	SchemaRange protocol.Range
+	HasHeader   bool
+	Types       []*TypeDecl
+	Conds       []*ConditionDecl
 
 	// Store-test documents only.
 	Store *StoreTest
@@ -89,20 +94,6 @@ func (d *Document) Text(n *ts.Node) string {
 	return string(d.Content[start:end])
 }
 
-// parserPool hands out tree-sitter parsers. Parsing happens on the request
-// goroutine, and a parser is not safe to share across them.
-var parserPool = sync.Pool{
-	New: func() any {
-		parser := ts.NewParser()
-
-		if err := parser.SetLanguage(Language()); err != nil {
-			panic(err)
-		}
-
-		return parser
-	},
-}
-
 var (
 	languageOnce sync.Once
 	language     *ts.Language
@@ -119,9 +110,19 @@ func Language() *ts.Language {
 
 // Parse builds a tree for content, reusing old for incremental reparsing when
 // the caller has one.
+//
+// A parser is built per call rather than pooled. go-tree-sitter registers no
+// finalizers, so a sync.Pool -- which drops its contents on any GC cycle --
+// leaks the C parser behind every entry it discards, unbounded over the life
+// of a server. Constructing one costs an allocation next to nothing against
+// the parse itself.
 func Parse(content []byte, old *ts.Tree) *ts.Tree {
-	parser, _ := parserPool.Get().(*ts.Parser)
-	defer parserPool.Put(parser)
+	parser := ts.NewParser()
+	defer parser.Close()
+
+	if err := parser.SetLanguage(Language()); err != nil {
+		return nil
+	}
 
 	return parser.Parse(content, old)
 }

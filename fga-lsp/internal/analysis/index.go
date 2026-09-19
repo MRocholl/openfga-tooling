@@ -14,61 +14,243 @@ import (
 // documents rather than maintaining derived maps that would need
 // invalidating.
 type Index struct {
-	mu   sync.RWMutex
-	docs map[protocol.DocumentUri]*Document
+	mu     sync.RWMutex
+	docs   map[protocol.DocumentUri]*Document
+	byPath map[string]*Document
 }
 
 func NewIndex() *Index {
-	return &Index{docs: make(map[protocol.DocumentUri]*Document)}
+	return &Index{
+		docs:   make(map[protocol.DocumentUri]*Document),
+		byPath: make(map[string]*Document),
+	}
 }
 
 // View is a read-locked window onto the index. Every query method lives here
 // so that a feature can ask several questions against one consistent state.
+//
+// A View, and every *Document reached through it, is valid only inside the
+// Read callback: a later Put frees the tree behind a replaced document. Copy
+// out what is needed rather than keeping the pointer.
 type View struct {
-	docs map[protocol.DocumentUri]*Document
+	docs   map[protocol.DocumentUri]*Document
+	byPath map[string]*Document
 }
 
 func (ix *Index) Read(fn func(v *View)) {
 	ix.mu.RLock()
 	defer ix.mu.RUnlock()
 
-	fn(&View{docs: ix.docs})
+	fn(&View{docs: ix.docs, byPath: ix.byPath})
 }
 
 // Put analyses content and stores it, replacing whatever was there.
-func (ix *Index) Put(uri protocol.DocumentUri, version protocol.Integer, content []byte) *Document {
+//
+// It deliberately returns nothing. Handing back the stored *Document would
+// invite a caller to hold it across the next Put, which frees the tree behind
+// it; read it inside Read instead.
+func (ix *Index) Put(uri protocol.DocumentUri, version protocol.Integer, content []byte) {
 	doc := Analyze(uri, version, content)
 
 	ix.mu.Lock()
 	defer ix.mu.Unlock()
 
+	// An out-of-order didChange must not install a stale buffer over a newer
+	// one. Version 0 means "loaded from disk", which anything synced wins
+	// over.
 	if previous, ok := ix.docs[uri]; ok {
+		if version > 0 && previous.Version > version {
+			doc.Close()
+
+			return
+		}
+
 		previous.Close()
 	}
 
 	ix.docs[uri] = doc
 
-	return doc
+	if doc.Path != "" {
+		ix.byPath[doc.Path] = doc
+	}
 }
 
 func (ix *Index) Delete(uri protocol.DocumentUri) {
 	ix.mu.Lock()
 	defer ix.mu.Unlock()
 
-	if doc, ok := ix.docs[uri]; ok {
-		doc.Close()
-		delete(ix.docs, uri)
+	doc, ok := ix.docs[uri]
+	if !ok {
+		return
+	}
+
+	if doc.Path != "" && ix.byPath[doc.Path] == doc {
+		delete(ix.byPath, doc.Path)
+	}
+
+	doc.Close()
+	delete(ix.docs, uri)
+}
+
+// EnsureReferences loads the files a document points at but the index has not
+// seen: the modules an fga.mod lists, the model a store test names, and the
+// fga.mod that claims a module.
+//
+// Without it, a client that only syncs the files it opens gives the server a
+// truncated module set, and every name defined in a sibling module resolves
+// to "unknown relation" -- a correct line reported as an error.
+//
+// Resolution is transitive and reaches a fixed point: opening a module finds
+// its fga.mod, which in turn names the siblings that complete the set.
+func (ix *Index) EnsureReferences(uri protocol.DocumentUri) {
+	const maxRounds = 8
+
+	if !ix.has(uri) {
+		return
+	}
+
+	for range maxRounds {
+		missing := ix.unresolved()
+		if len(missing) == 0 {
+			return
+		}
+
+		loaded := false
+
+		for _, path := range missing {
+			content, err := os.ReadFile(path) //nolint:gosec // paths come from the workspace
+			if err != nil {
+				continue
+			}
+
+			ix.Put(URIFromPath(path), 0, content)
+
+			loaded = true
+		}
+
+		if !loaded {
+			return
+		}
 	}
 }
 
-// Analyze parses and extracts a single document.
+func (ix *Index) has(uri protocol.DocumentUri) bool {
+	ix.mu.RLock()
+	defer ix.mu.RUnlock()
+
+	_, ok := ix.docs[uri]
+
+	return ok
+}
+
+// unresolved collects what every known document still needs. Sweeping all of
+// them, rather than following one document's references, is what makes the
+// walk transitive without tracking which file introduced which reference.
+func (ix *Index) unresolved() []string {
+	ix.mu.RLock()
+	defer ix.mu.RUnlock()
+
+	view := &View{docs: ix.docs, byPath: ix.byPath}
+
+	seen := map[string]struct{}{}
+
+	var missing []string
+
+	for _, doc := range ix.docs {
+		for _, path := range view.unresolvedReferences(doc) {
+			if _, ok := seen[path]; ok {
+				continue
+			}
+
+			seen[path] = struct{}{}
+
+			missing = append(missing, path)
+		}
+	}
+
+	return missing
+}
+
+// unresolvedReferences lists the on-disk files doc depends on that are not in
+// the index yet.
+func (v *View) unresolvedReferences(doc *Document) []string {
+	var wanted []string
+
+	switch doc.Kind {
+	case KindModFile:
+		if doc.Mod != nil {
+			for _, entry := range doc.Mod.Contents {
+				wanted = append(wanted, entry.Path)
+			}
+		}
+
+	case KindStoreTest:
+		if doc.Store != nil && doc.Store.ModelPath != "" {
+			wanted = append(wanted, doc.Store.ModelPath)
+		}
+
+	case KindModel:
+		if path := findModFile(doc.Path); path != "" {
+			wanted = append(wanted, path)
+		}
+
+	case KindUnknown:
+	}
+
+	var missing []string
+
+	for _, path := range wanted {
+		if path == "" || v.GetByPath(path) != nil {
+			continue
+		}
+
+		missing = append(missing, path)
+	}
+
+	return missing
+}
+
+// findModFile walks up from a module looking for the fga.mod that lists it.
+// Models sit beside their fga.mod or a directory or two below it; the walk
+// stops well before the filesystem root.
+func findModFile(path string) string {
+	const maxLevels = 4
+
+	dir := filepath.Dir(path)
+
+	for range maxLevels {
+		candidate := filepath.Join(dir, "fga.mod")
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
+		}
+
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+
+		dir = parent
+	}
+
+	return ""
+}
+
+// Analyze parses and extracts a single document, choosing how to read it
+// from its file name.
 func Analyze(uri protocol.DocumentUri, version protocol.Integer, content []byte) *Document {
+	return AnalyzeAs(uri, version, content, KindOf(PathFromURI(uri)))
+}
+
+// AnalyzeAs is Analyze for content whose kind the file name does not give
+// away -- the DSL inside a store test's inline `model:` block, which has no
+// file of its own.
+func AnalyzeAs(uri protocol.DocumentUri, version protocol.Integer, content []byte, kind Kind) *Document {
 	path := PathFromURI(uri)
 
 	doc := &Document{
 		URI:     uri,
 		Path:    path,
-		Kind:    KindOf(path),
+		Kind:    kind,
 		Version: version,
 		Content: content,
 		Lines:   NewLineIndex(content),
@@ -93,13 +275,7 @@ func Analyze(uri protocol.DocumentUri, version protocol.Integer, content []byte)
 func (v *View) Get(uri protocol.DocumentUri) *Document { return v.docs[uri] }
 
 func (v *View) GetByPath(path string) *Document {
-	for _, doc := range v.docs {
-		if doc.Path != "" && sameFile(doc.Path, path) {
-			return doc
-		}
-	}
-
-	return nil
+	return v.byPath[filepath.Clean(path)]
 }
 
 func (v *View) Documents() []*Document {
@@ -285,16 +461,5 @@ func (v *View) Contents(path string) ([]byte, error) {
 }
 
 func sameFile(a, b string) bool {
-	if a == b {
-		return true
-	}
-
-	cleanA, errA := filepath.Abs(filepath.Clean(a))
-	cleanB, errB := filepath.Abs(filepath.Clean(b))
-
-	if errA != nil || errB != nil {
-		return false
-	}
-
-	return cleanA == cleanB
+	return filepath.Clean(a) == filepath.Clean(b)
 }

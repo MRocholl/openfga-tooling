@@ -174,6 +174,7 @@ func skipDir(name string) bool {
 
 func (s *Server) didOpen(ctx *glsp.Context, params *protocol.DidOpenTextDocumentParams) error {
 	s.index.Put(params.TextDocument.URI, params.TextDocument.Version, []byte(params.TextDocument.Text))
+	s.index.EnsureReferences(params.TextDocument.URI)
 
 	s.publish(ctx, params.TextDocument.URI)
 
@@ -187,6 +188,7 @@ func (s *Server) didChange(ctx *glsp.Context, params *protocol.DidChangeTextDocu
 	}
 
 	s.index.Put(params.TextDocument.URI, params.TextDocument.Version, []byte(text))
+	s.index.EnsureReferences(params.TextDocument.URI)
 
 	s.publish(ctx, params.TextDocument.URI)
 

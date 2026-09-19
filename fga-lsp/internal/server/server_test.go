@@ -139,11 +139,13 @@ func TestUnknownRelationIsReportedOnTheWord(t *testing.T) {
 	s := newSession(t, "broken")
 	uri := s.open("model.fga")
 
-	// `member from organization` makes `organization` a relation on
-	// `document`, not a type reference, so that is how it is reported.
+	// The wording is openfga/language's, so a squiggle here reads the same
+	// as `fga model validate` in the terminal. `member from organization`
+	// makes `organization` a relation on `document`, not a type reference,
+	// so that is how it is reported.
 	want := map[string]bool{
-		`type "document" has no relation "editor"`:       false,
-		`type "document" has no relation "organization"`: false,
+		"the relation `editor` does not exist.":                  false,
+		"`organization` is not a valid relation for `document`.": false,
 	}
 
 	for _, message := range s.messages(uri) {
@@ -161,7 +163,7 @@ func TestUnknownRelationIsReportedOnTheWord(t *testing.T) {
 	// The range has to cover just the offending name, or the squiggle is
 	// useless in a line of five relation names.
 	for _, d := range s.diagnostics(uri) {
-		if d.Message != `type "document" has no relation "editor"` {
+		if d.Message != "the relation `editor` does not exist." {
 			continue
 		}
 
@@ -215,7 +217,7 @@ func TestEditingAModuleRevalidatesItsSiblings(t *testing.T) {
 
 	if got := s.messages(docs); len(got) == 0 {
 		t.Error("expected docs.fga to break when core.fga loses a relation it uses")
-	} else if !strings.Contains(strings.Join(got, "\n"), `"admin"`) {
+	} else if !strings.Contains(strings.Join(got, "\n"), "`admin`") {
 		t.Errorf("expected a diagnostic naming admin, got %v", got)
 	}
 }
@@ -321,5 +323,97 @@ func TestExternalWorkspace(t *testing.T) {
 		for _, d := range diagnostics {
 			t.Errorf("%s:%d: %s", filepath.Base(analysis.PathFromURI(uri)), d.Range.Start.Line+1, d.Message)
 		}
+	}
+}
+
+// TestInlineModelStoreTestResolves covers a store test that carries its model
+// in a `model: |` block instead of pointing at a file. That block has no file
+// name, so its kind has to be stated rather than inferred, or every type in
+// it reads as undeclared.
+func TestInlineModelStoreTestResolves(t *testing.T) {
+	t.Parallel()
+
+	s := newSession(t, "inline")
+	uri := s.open("store.fga.yaml")
+
+	if got := s.diagnostics(uri); len(got) != 0 {
+		t.Errorf("expected no diagnostics, got %v", s.messages(uri))
+	}
+}
+
+// TestModularSyntaxErrorLandsInItsModule pins down where a syntax error shows
+// up. The tree-sitter grammar is looser than the reference parser on purpose,
+// so a module can parse cleanly here and still be rejected by `fga`; the
+// report has to name the module, not the fga.mod that happens to list it.
+func TestModularSyntaxErrorLandsInItsModule(t *testing.T) {
+	t.Parallel()
+
+	s := newSession(t, "workspace")
+
+	docs := s.open("docs.fga")
+	modURI := analysis.URIFromPath(filepath.Join(s.root, "fga.mod"))
+
+	// Two relations on one line: legal to the grammar, not to ANTLR.
+	s.edit(docs, "module docs\n\ntype note\n  relations\n    define a: [user] define b: [user]\n")
+
+	diagnostics := s.diagnostics(docs)
+	if len(diagnostics) == 0 {
+		t.Fatal("expected the module to be reported as broken")
+	}
+
+	if got := s.diagnostics(modURI); len(got) != 0 {
+		t.Errorf("fga.mod should be clean, got %v", s.messages(modURI))
+	}
+
+	for _, d := range diagnostics {
+		if strings.HasPrefix(d.Message, "syntax error at line=") {
+			t.Errorf("the raw transformer string leaked into the message: %q", d.Message)
+		}
+
+		if d.Range.Start.Line == 0 {
+			t.Errorf("expected the error on the offending line, not line 1: %q", d.Message)
+		}
+	}
+}
+
+// TestUnscannedSiblingsAreLoaded covers the client that syncs only the file
+// it opens. Without pulling in the rest of the module set, every name defined
+// in a sibling resolves to "unknown relation" -- a correct line reported as
+// an error.
+func TestUnscannedSiblingsAreLoaded(t *testing.T) {
+	t.Parallel()
+
+	root, err := filepath.Abs(filepath.Join("..", "..", "testdata", "workspace"))
+	if err != nil {
+		t.Fatalf("resolving fixture: %v", err)
+	}
+
+	s := &session{
+		t:        t,
+		handler:  server.New("test").Handler(),
+		root:     root,
+		reported: map[protocol.DocumentUri][]protocol.Diagnostic{},
+	}
+
+	s.ctx = &glsp.Context{Notify: func(method string, params any) {
+		if method != protocol.ServerTextDocumentPublishDiagnostics {
+			return
+		}
+
+		if published, ok := params.(protocol.PublishDiagnosticsParams); ok {
+			s.reported[published.URI] = published.Diagnostics
+		}
+	}}
+
+	// No rootUri: nothing is scanned up front, so the index starts empty.
+	if _, err := s.handler.Initialize(s.ctx, &protocol.InitializeParams{}); err != nil {
+		t.Fatalf("initialize: %v", err)
+	}
+
+	// docs.fga reaches `admin` and `user`, both declared in core.fga.
+	uri := s.open("docs.fga")
+
+	if got := s.diagnostics(uri); len(got) != 0 {
+		t.Errorf("expected the sibling module to be loaded on demand, got %v", s.messages(uri))
 	}
 }

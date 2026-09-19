@@ -17,17 +17,18 @@ func PathFromURI(uri protocol.DocumentUri) string {
 		return ""
 	}
 
-	path, err := url.PathUnescape(parsed.Path)
-	if err != nil {
-		return ""
-	}
+	// url.Parse has already decoded the path. Unescaping it again turns a
+	// literal percent into an escape: `/tmp/100%.fga` arrives as
+	// `file:///tmp/100%25.fga` and would decode twice into an error, leaving
+	// the file silently unanalysed.
+	path := parsed.Path
 
 	if runtime.GOOS == "windows" {
 		path = strings.TrimPrefix(path, "/")
 		path = filepath.FromSlash(path)
 	}
 
-	return path
+	return filepath.Clean(path)
 }
 
 func URIFromPath(path string) protocol.DocumentUri {

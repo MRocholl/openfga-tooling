@@ -18,9 +18,6 @@ type moduleSetInfo struct {
 	mod     *analysis.Document
 	primary *analysis.Document
 	docs    []*analysis.Document
-	// names maps a document to the name it carries inside fga.mod, which is
-	// how transformation errors identify it.
-	names map[protocol.DocumentUri]string
 }
 
 type problem struct {
@@ -33,7 +30,6 @@ func moduleSet(view *analysis.View, doc *analysis.Document) moduleSetInfo {
 	set := moduleSetInfo{
 		primary: doc,
 		docs:    []*analysis.Document{doc},
-		names:   map[protocol.DocumentUri]string{},
 	}
 
 	mod, members := view.ModuleSetFor(doc.Path)
@@ -44,16 +40,9 @@ func moduleSet(view *analysis.View, doc *analysis.Document) moduleSetInfo {
 	set.mod = mod
 	set.docs = nil
 
-	for i, path := range members {
-		member := view.GetByPath(path)
-		if member == nil {
-			continue
-		}
-
-		set.docs = append(set.docs, member)
-
-		if i < len(mod.Mod.Contents) {
-			set.names[member.URI] = mod.Mod.Contents[i].Value
+	for _, path := range members {
+		if member := view.GetByPath(path); member != nil {
+			set.docs = append(set.docs, member)
 		}
 	}
 
@@ -257,4 +246,31 @@ func (s moduleSetInfo) scoped() []*analysis.Document {
 	}
 
 	return s.docs
+}
+
+// antlrSyntaxErrors runs the reference parser over one module file.
+//
+// The tree-sitter grammar is deliberately the more permissive of the two, so
+// a file can yield a clean tree and still be rejected by `fga`. Running ANTLR
+// per file, rather than letting TransformModuleFilesToModel discover it,
+// is what puts the error in the module that caused it: a syntax failure
+// inside the modular transform arrives as a type with no File field, and
+// would otherwise be reported against the fga.mod.
+func antlrSyntaxErrors(doc *analysis.Document, result Result) bool {
+	_, listener := transformer.ParseDSL(string(doc.Content))
+	if listener == nil || listener.Errors == nil || len(listener.Errors.Errors) == 0 {
+		return false
+	}
+
+	for _, single := range listener.Errors.Errors {
+		line, column, message := parseSyntaxError(single.Error())
+
+		result.add(doc.URI, diagnostic(
+			caretRange(doc, line, column),
+			message,
+			protocol.DiagnosticSeverityError,
+		))
+	}
+
+	return true
 }

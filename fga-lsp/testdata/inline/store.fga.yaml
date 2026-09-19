@@ -1,0 +1,24 @@
+name: inline model store test
+model: |
+  model
+    schema 1.1
+
+  type user
+
+  type document
+    relations
+      define owner: [user]
+      define viewer: [user] or owner
+
+tuples:
+  - user: user:anne
+    relation: owner
+    object: document:roadmap
+
+tests:
+  - name: the owner is a viewer
+    check:
+      - user: user:anne
+        object: document:roadmap
+        assertions:
+          viewer: true

@@ -14,7 +14,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/openfga/openfga/pkg/typesystem"
 	protocol "github.com/tliron/glsp/protocol_3_16"
@@ -69,7 +71,11 @@ func modelDiagnostics(view *analysis.View, doc *analysis.Document, result Result
 	syntaxBroken := false
 
 	for _, member := range set.docs {
-		if syntaxErrors(member, result) {
+		// tree-sitter first: it has an answer for a half-typed buffer, and
+		// its ranges are tighter. ANTLR only runs when that pass is happy,
+		// to catch what the looser grammar lets through without reporting
+		// the same break twice.
+		if syntaxErrors(member, result) || antlrSyntaxErrors(member, result) {
 			syntaxBroken = true
 		}
 	}
@@ -85,7 +91,7 @@ func modelDiagnostics(view *analysis.View, doc *analysis.Document, result Result
 	covered := map[string]struct{}{}
 
 	for _, member := range set.docs {
-		referenceErrors(names, member, result, covered)
+		semanticErrors(names, member, set.mod != nil, result, covered)
 	}
 
 	if syntaxBroken {
@@ -154,88 +160,6 @@ func syntaxErrors(doc *analysis.Document, result Result) bool {
 	return found
 }
 
-// referenceErrors checks every name a relation definition mentions against
-// the merged model, which is where the precise ranges come from.
-func referenceErrors(names scope, doc *analysis.Document, result Result, covered map[string]struct{}) {
-	for _, typeDecl := range doc.Types {
-		seen := map[string]bool{}
-
-		for _, rel := range typeDecl.Relations {
-			if seen[rel.Name] {
-				result.add(doc.URI, diagnostic(
-					rel.NameRange,
-					fmt.Sprintf("relation %q is defined twice on type %q", rel.Name, typeDecl.Name),
-					protocol.DiagnosticSeverityError,
-				))
-			}
-
-			seen[rel.Name] = true
-
-			for _, ref := range rel.Refs {
-				message := resolveRef(names, typeDecl.Name, ref)
-				if message == "" {
-					continue
-				}
-
-				result.add(doc.URI, diagnostic(ref.Range, message, protocol.DiagnosticSeverityError))
-
-				for _, key := range refKeys(names, typeDecl.Name, ref) {
-					covered[key] = struct{}{}
-				}
-			}
-		}
-	}
-}
-
-// resolveRef returns a message when a reference does not resolve, "" when it
-// does.
-func resolveRef(names scope, enclosingType string, ref analysis.Ref) string {
-	switch ref.Kind {
-	case analysis.RefType:
-		if !names.hasType(ref.Name) {
-			return fmt.Sprintf("unknown type %q", ref.Name)
-		}
-
-	case analysis.RefRelationOnSelf:
-		if !names.hasRelation(enclosingType, ref.Name) {
-			return fmt.Sprintf("type %q has no relation %q", enclosingType, ref.Name)
-		}
-
-	case analysis.RefRelationOnType:
-		if !names.hasType(ref.OwnerType) {
-			return "" // the type itself is already reported
-		}
-
-		if !names.hasRelation(ref.OwnerType, ref.Name) {
-			return fmt.Sprintf("type %q has no relation %q", ref.OwnerType, ref.Name)
-		}
-
-	case analysis.RefRelationViaTupleset:
-		targets := names.tuplesetTargets(enclosingType, ref.Tupleset)
-		if len(targets) == 0 {
-			return "" // the tupleset relation itself is already reported
-		}
-
-		for _, target := range targets {
-			if names.hasRelation(target, ref.Name) {
-				return ""
-			}
-		}
-
-		return fmt.Sprintf(
-			"no type reachable through %q defines %q (looked in %s)",
-			ref.Tupleset, ref.Name, strings.Join(targets, ", "),
-		)
-
-	case analysis.RefCondition:
-		if len(names.conditionDecls(ref.Name)) == 0 {
-			return fmt.Sprintf("unknown condition %q", ref.Name)
-		}
-	}
-
-	return ""
-}
-
 // reportTypesystem maps an openfga validation failure onto the declaration it
 // names. Anything already reported by name resolution is dropped, since that
 // pass underlines the offending word rather than the whole line.
@@ -264,6 +188,8 @@ func reportTypesystem(
 			uri, rng, ok = relationRange(view, set, objectType, relation)
 		case objectType != "":
 			uri, rng, ok = typeRange(view, set, objectType)
+		case relation != "":
+			uri, rng, ok = anyRelationRange(view, set, relation)
 		}
 
 		if !ok {
@@ -277,6 +203,15 @@ func reportTypesystem(
 
 		result.add(uri, diagnostic(rng, message, protocol.DiagnosticSeverityError))
 	}
+}
+
+// messageSubjects recover a type and relation from an error that carries no
+// structured fields. Most of the typesystem's failures are plain fmt.Errorf
+// values, and without this every one of them lands on line 1 of the file.
+var messageSubjects = []*regexp.Regexp{
+	regexp.MustCompile(`relation '([^']+)' in object type '([^']+)'`),
+	regexp.MustCompile(`on '([^']+)' in object type '([^']+)'`),
+	regexp.MustCompile(`'([^'#]+)#([^']+)' relation`),
 }
 
 func subject(err error) (objectType, relation string) {
@@ -301,7 +236,49 @@ func subject(err error) (objectType, relation string) {
 		return "", condition.Relation
 	}
 
+	return subjectFromMessage(err.Error())
+}
+
+func subjectFromMessage(message string) (objectType, relation string) {
+	for i, pattern := range messageSubjects {
+		match := pattern.FindStringSubmatch(message)
+		if match == nil {
+			continue
+		}
+
+		// The last pattern reads `type#relation`; the others name the
+		// relation first.
+		if i == len(messageSubjects)-1 {
+			return match[1], match[2]
+		}
+
+		return match[2], match[1]
+	}
+
+	if match := regexp.MustCompile(`undefined relation: ([\w./-]+)`).FindStringSubmatch(message); match != nil {
+		return "", match[1]
+	}
+
 	return "", ""
+}
+
+// anyRelationRange places an error that names a relation but not its type.
+func anyRelationRange(
+	view *analysis.View,
+	set moduleSetInfo,
+	relation string,
+) (protocol.DocumentUri, protocol.Range, bool) {
+	for _, doc := range set.docs {
+		for _, decl := range doc.Types {
+			for _, rel := range decl.Relations {
+				if rel.Name == relation {
+					return doc.URI, rel.NameRange, true
+				}
+			}
+		}
+	}
+
+	return "", protocol.Range{}, false
 }
 
 func relationRange(
@@ -355,44 +332,6 @@ func duplicate(existing []protocol.Diagnostic, rng protocol.Range, message strin
 	return false
 }
 
-// refKeys names what a failed reference was looking for, in the same terms
-// the typesystem reports its own failures in.
-func refKeys(names scope, enclosingType string, ref analysis.Ref) []string {
-	switch ref.Kind {
-	case analysis.RefType:
-		return []string{subjectKey(ref.Name, "")}
-
-	case analysis.RefRelationOnSelf:
-		return []string{subjectKey(enclosingType, ref.Name)}
-
-	case analysis.RefRelationOnType:
-		return []string{subjectKey(ref.OwnerType, ref.Name)}
-
-	case analysis.RefRelationViaTupleset:
-		targets := names.tuplesetTargets(enclosingType, ref.Tupleset)
-
-		keys := make([]string, 0, len(targets))
-		for _, target := range targets {
-			keys = append(keys, subjectKey(target, ref.Name))
-		}
-
-		return keys
-
-	case analysis.RefCondition:
-		return []string{"condition:" + ref.Name}
-	}
-
-	return nil
-}
-
-func subjectKey(objectType, relation string) string {
-	if relation == "" {
-		return objectType
-	}
-
-	return objectType + "#" + relation
-}
-
 // flatten unwraps the multi-error wrappers both libraries use.
 func flatten(err error) []error {
 	if err == nil {
@@ -431,10 +370,12 @@ func firstLine(s string) string {
 		s = s[:idx]
 	}
 
+	// Truncating by byte can split a rune and put invalid UTF-8 on the wire.
 	const limit = 40
-	if len(s) > limit {
-		return s[:limit] + "..."
+
+	if utf8.RuneCountInString(s) <= limit {
+		return s
 	}
 
-	return s
+	return string([]rune(s)[:limit]) + "..."
 }

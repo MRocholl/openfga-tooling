@@ -15,6 +15,15 @@ import (
 // reporting every sibling module's types as unknown.
 type scope struct {
 	docs []*analysis.Document
+	// transient is a document built for this call alone -- an inline model
+	// out of a store test -- whose parse tree the caller has to free.
+	transient *analysis.Document
+}
+
+func (s scope) close() {
+	if s.transient != nil {
+		s.transient.Close()
+	}
 }
 
 func scopeOf(view *analysis.View, docs []*analysis.Document) scope {

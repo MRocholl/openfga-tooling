@@ -137,7 +137,7 @@ func (c storeChecker) tuple(tuple analysis.Tuple) {
 	}
 
 	if !validation.ValidateRelation(tuple.Relation.Value) {
-		c.report(tuple.Relation.Range, fmt.Sprintf("%q is not a valid relation name", tuple.Relation.Value))
+		c.report(tuple.Relation.Range, fmt.Sprintf("`%s` is not a valid relation name.", tuple.Relation.Value))
 
 		return
 	}
@@ -158,7 +158,7 @@ func (c storeChecker) object(field analysis.Field) string {
 	}
 
 	if !validation.ValidateObject(field.Value) {
-		c.report(field.Range, fmt.Sprintf("%q is not a valid object; expected <type>:<id>", field.Value))
+		c.report(field.Range, fmt.Sprintf("`%s` is not a valid object; expected <type>:<id>.", field.Value))
 
 		return ""
 	}
@@ -181,7 +181,7 @@ func (c storeChecker) user(field analysis.Field) {
 	}
 
 	if !validation.ValidateUser(field.Value) {
-		c.report(field.Range, fmt.Sprintf("%q is not a valid user", field.Value))
+		c.report(field.Range, fmt.Sprintf("`%s` is not a valid user.", field.Value))
 
 		return
 	}
@@ -266,7 +266,7 @@ func (c storeChecker) listUsers(entry analysis.ListUsers) {
 }
 
 func (c storeChecker) unknownType(name string) string {
-	return fmt.Sprintf("unknown type %q%s", name, suggest(name, c.names.typeNames()))
+	return fmt.Sprintf("`%s` is not a valid type.%s", name, suggest(name, c.names.typeNames()))
 }
 
 func (c storeChecker) unknownRelation(typeName, relation string) string {
@@ -275,7 +275,7 @@ func (c storeChecker) unknownRelation(typeName, relation string) string {
 		candidates = append(candidates, rel.Name)
 	}
 
-	return fmt.Sprintf("type %q has no relation %q%s", typeName, relation, suggest(relation, candidates))
+	return fmt.Sprintf("`%s` is not a valid relation for `%s`.%s", relation, typeName, suggest(relation, candidates))
 }
 
 // suggest offers the closest known name.
@@ -292,7 +292,7 @@ func suggest(name string, candidates []string) string {
 		return ""
 	}
 
-	return fmt.Sprintf("; did you mean %q?", best)
+	return fmt.Sprintf(" Did you mean `%s`?", best)
 }
 
 func editDistance(a, b string) int {
@@ -341,7 +341,7 @@ func modDiagnostics(view *analysis.View, doc *analysis.Document, result Result) 
 		if _, ok := seen[entry.Value]; ok {
 			result.add(doc.URI, diagnostic(
 				entry.Range,
-				fmt.Sprintf("%q is listed twice", entry.Value),
+				fmt.Sprintf("`%s` is listed twice.", entry.Value),
 				protocol.DiagnosticSeverityWarning,
 			))
 		}

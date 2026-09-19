@@ -177,9 +177,9 @@ func TestStoreTestNamesAreCheckedAgainstTheModel(t *testing.T) {
 	joined := strings.Join(s.messages(uri), "\n")
 
 	for _, want := range []string{
-		`type "document" has no relation "ownr"; did you mean "owner"?`,
-		`unknown type "folder"`,
-		`has no relation "can_veiw"; did you mean "can_view"?`,
+		"`ownr` is not a valid relation for `document`. Did you mean `owner`?",
+		"`folder` is not a valid type.",
+		"`can_veiw` is not a valid relation for `document`. Did you mean `can_view`?",
 	} {
 		if !strings.Contains(joined, want) {
 			t.Errorf("missing %q in:\n%s", want, joined)

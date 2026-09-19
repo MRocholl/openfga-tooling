@@ -104,13 +104,25 @@ func renderType(doc *analysis.Document, n *ts.Node) string {
 	cursor := block.Walk()
 	defer cursor.Close()
 
+	previousEnd := -1
+
 	for _, child := range block.NamedChildren(cursor) {
+		// Blank lines inside a relations block separate the capabilities from
+		// the permissions derived off them. That grouping is the author's, so
+		// it survives here exactly as it does between top-level declarations.
+		start := int(child.StartPosition().Row)
+		if previousEnd >= 0 && start > previousEnd+1 {
+			b.WriteString("\n")
+		}
+
 		switch child.Kind() {
 		case "comment":
 			b.WriteString(indentDefine + comment(doc, &child) + "\n")
 		case "relation_definition":
 			b.WriteString(indentDefine + renderRelation(doc, &child) + "\n")
 		}
+
+		previousEnd = int(child.EndPosition().Row)
 	}
 
 	return b.String()

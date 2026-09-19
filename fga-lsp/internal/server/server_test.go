@@ -390,3 +390,53 @@ func TestUnscannedSiblingsAreLoaded(t *testing.T) {
 		t.Errorf("expected the sibling module to be loaded on demand, got %v", s.messages(uri))
 	}
 }
+
+// TestATyposRepeatDoesNotLandOnTheModFile covers the fallback path for a
+// typesystem error carrying no position. The precise diagnostic belongs on
+// the offending word; the repeat must not appear on line 1 of the fga.mod.
+func TestATyposRepeatDoesNotLandOnTheModFile(t *testing.T) {
+	t.Parallel()
+
+	s := newSession(t, "workspace")
+
+	docs := s.open("docs.fga")
+	modURI := analysis.URIFromPath(filepath.Join(s.root, "fga.mod"))
+
+	// `admin from organization` with the relation misspelled: valid syntax,
+	// and the typesystem reports it without naming the owning type.
+	s.edit(docs, strings.Replace(
+		mustRead(t, filepath.Join(s.root, "docs.fga")),
+		"admin from organization", "admn from organization", 1,
+	))
+
+	if got := s.messages(modURI); len(got) != 0 {
+		t.Errorf("fga.mod should stay clean, got %v", got)
+	}
+
+	diagnostics := s.diagnostics(docs)
+	if len(diagnostics) == 0 {
+		t.Fatal("expected the typo to be reported")
+	}
+
+	for _, d := range diagnostics {
+		if !strings.Contains(d.Message, "admn") {
+			continue
+		}
+
+		if d.Range.Start.Line == 0 {
+			t.Errorf("expected the typo on its own line, not line 1: %q", d.Message)
+		}
+	}
+
+	var about int
+
+	for _, d := range diagnostics {
+		if strings.Contains(d.Message, "admn") {
+			about++
+		}
+	}
+
+	if about != 1 {
+		t.Errorf("expected one diagnostic about the typo, got %d: %v", about, s.messages(docs))
+	}
+}

@@ -364,26 +364,31 @@ func unusedConditions(names scope, doc *analysis.Document, result Result) {
 }
 
 // refKeys names what a failed reference was looking for, in the typesystem's terms.
+//
+// A relation gets a bare key alongside its qualified one, because the
+// typesystem names the owning type in some messages and not in others; without
+// it an unqualified repeat escapes suppression and lands on line 1 of whatever
+// file the set falls back to.
 func refKeys(names scope, enclosingType string, ref analysis.Ref) []string {
 	switch ref.Kind {
 	case analysis.RefType:
 		return []string{subjectKey(ref.Name, "")}
 
 	case analysis.RefRelationOnSelf, analysis.RefTupleset:
-		return []string{subjectKey(enclosingType, ref.Name)}
+		return []string{subjectKey(enclosingType, ref.Name), subjectKey("", ref.Name)}
 
 	case analysis.RefRelationOnType:
-		return []string{subjectKey(ref.OwnerType, ref.Name)}
+		return []string{subjectKey(ref.OwnerType, ref.Name), subjectKey("", ref.Name)}
 
 	case analysis.RefRelationViaTupleset:
 		targets := names.tuplesetTargets(enclosingType, ref.Tupleset)
 
-		keys := make([]string, 0, len(targets))
+		keys := make([]string, 0, len(targets)+1)
 		for _, target := range targets {
 			keys = append(keys, subjectKey(target, ref.Name))
 		}
 
-		return keys
+		return append(keys, subjectKey("", ref.Name))
 
 	case analysis.RefCondition:
 		return []string{"condition:" + ref.Name}

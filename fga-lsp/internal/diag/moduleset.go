@@ -12,8 +12,7 @@ import (
 	"github.com/mrocholl/fga-lsp/internal/analysis"
 )
 
-// moduleSetInfo is the unit the reference transformer works on: either the
-// files an fga.mod lists, or a single self-contained model.
+// moduleSetInfo is the unit the reference transformer works on.
 type moduleSetInfo struct {
 	mod     *analysis.Document
 	primary *analysis.Document
@@ -73,16 +72,12 @@ func (s moduleSetInfo) fallback() (protocol.DocumentUri, protocol.Range) {
 	return target.URI, target.Lines.LineRange(0)
 }
 
-// build assembles the set into an authorization model, returning the
-// transformation failures located in their own files.
+// build assembles the set into an authorization model.
 func (s moduleSetInfo) build(view *analysis.View) (*openfgav1.AuthorizationModel, []problem) {
 	if s.mod != nil {
 		return s.buildModular(view)
 	}
 
-	// A module file outside any fga.mod cannot stand on its own: it has no
-	// schema version and its types may be extensions of another module's.
-	// There is nothing to report that the user did not already know.
 	if s.primary.Module != "" {
 		return nil, nil
 	}
@@ -178,8 +173,6 @@ func (s moduleSetInfo) locate(view *analysis.View, err error) problem {
 var syntaxErrorPattern = regexp.MustCompile(`^syntax error at line=(-?\d+), column=(-?\d+): (.*)$`)
 
 // parseSyntaxError recovers the position the transformer keeps unexported.
-// Both numbers are already zero-based. A message in any other shape is passed
-// through whole and pinned to the first line.
 func parseSyntaxError(text string) (line, column int, message string) {
 	match := syntaxErrorPattern.FindStringSubmatch(text)
 	if match == nil {
@@ -192,8 +185,7 @@ func parseSyntaxError(text string) (line, column int, message string) {
 	return line, column, match[3]
 }
 
-// caretRange underlines the word at line/column, or the whole line when there
-// is no word there.
+// caretRange underlines the word at line/column, or the whole line when there is no word there.
 func caretRange(doc *analysis.Document, line, column int) protocol.Range {
 	if line < 0 || line >= doc.Lines.LineCount() {
 		return doc.Lines.LineRange(0)
@@ -238,8 +230,7 @@ func isSpace(b byte) bool {
 	return b == ' ' || b == '\t' || b == '\r' || b == '\n'
 }
 
-// scoped returns the documents that bound name resolution: the module set
-// when an fga.mod defines one, nil to mean "fall back to the workspace".
+// scoped returns the documents that bound name resolution, nil meaning the workspace.
 func (s moduleSetInfo) scoped() []*analysis.Document {
 	if s.mod == nil {
 		return nil
@@ -249,13 +240,6 @@ func (s moduleSetInfo) scoped() []*analysis.Document {
 }
 
 // antlrSyntaxErrors runs the reference parser over one module file.
-//
-// The tree-sitter grammar is deliberately the more permissive of the two, so
-// a file can yield a clean tree and still be rejected by `fga`. Running ANTLR
-// per file, rather than letting TransformModuleFilesToModel discover it,
-// is what puts the error in the module that caused it: a syntax failure
-// inside the modular transform arrives as a type with no File field, and
-// would otherwise be reported against the fga.mod.
 func antlrSyntaxErrors(doc *analysis.Document, result Result) bool {
 	_, listener := transformer.ParseDSL(string(doc.Content))
 	if listener == nil || listener.Errors == nil || len(listener.Errors.Errors) == 0 {

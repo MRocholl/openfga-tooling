@@ -8,8 +8,7 @@ import (
 	"github.com/mrocholl/fga-lsp/internal/analysis"
 )
 
-// DocumentSymbols outlines a model file: types, each with its relations
-// nested underneath, and any conditions.
+// DocumentSymbols outlines a model file: types, each with its relations nested underneath, and any conditions.
 func DocumentSymbols(doc *analysis.Document) []protocol.DocumentSymbol {
 	if doc.Kind != analysis.KindModel {
 		return nil
@@ -104,8 +103,7 @@ func symbolInfo(
 	return info
 }
 
-// fuzzyMatch accepts a name whose characters contain the query's in order,
-// which is what an editor's symbol prompt expects of `cvw` -> `can_view`.
+// fuzzyMatch accepts a name whose characters contain the query's in order, which is what an editor's symbol...
 func fuzzyMatch(query, name string) bool {
 	if query == "" {
 		return true

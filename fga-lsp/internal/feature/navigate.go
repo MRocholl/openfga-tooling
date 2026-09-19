@@ -8,9 +8,7 @@ import (
 	"github.com/mrocholl/fga-lsp/internal/analysis"
 )
 
-// Definition resolves the declarations a target points at. A relation reached
-// through a tupleset, or a type extended in several modules, legitimately has
-// more than one.
+// Definition resolves the declarations a target points at.
 func Definition(v *analysis.View, doc *analysis.Document, pos protocol.Position) []protocol.Location {
 	target := TargetAt(v, doc, pos)
 	if !target.Found() {
@@ -54,8 +52,7 @@ func declarations(scope analysis.Scope, target Target) []protocol.Location {
 	return out
 }
 
-// References finds every mention of the target across the workspace: the
-// model files in its scope, and any store test that resolves to that model.
+// References finds every mention of the target across the workspace: the model files in its scope, and any...
 func References(
 	v *analysis.View,
 	doc *analysis.Document,
@@ -87,11 +84,6 @@ func References(
 }
 
 // matches reports whether a symbol denotes the same thing as the target.
-//
-// Relations are compared by name and owning type. A symbol whose owner is
-// unknown -- a tuple whose object type did not resolve, say -- matches on
-// name alone rather than being dropped, because the alternative is a rename
-// that silently misses occurrences.
 func matches(symbol, target Target) bool {
 	if symbol.Kind != target.Kind || symbol.Name != target.Name {
 		return false
@@ -114,9 +106,7 @@ func matches(symbol, target Target) bool {
 	return false
 }
 
-// relatedDocuments returns the documents a reference search has to look at:
-// the model files in scope, plus the store tests and fga.mod files that name
-// them.
+// relatedDocuments returns the documents a reference search has to look at: the model files in scope, plus...
 func relatedDocuments(v *analysis.View, doc *analysis.Document) []*analysis.Document {
 	scope := analysis.ScopeFor(v, doc)
 

@@ -15,8 +15,7 @@ func indexBytes(haystack []byte, needle string) int {
 	return bytes.Index(haystack, []byte(needle))
 }
 
-// InRange reports whether pos falls inside r, treating both ends as inclusive
-// so that a cursor resting just after a name still resolves it.
+// InRange reports whether pos falls inside r, both ends inclusive.
 func InRange(r protocol.Range, pos protocol.Position) bool {
 	if pos.Line < r.Start.Line || pos.Line > r.End.Line {
 		return false

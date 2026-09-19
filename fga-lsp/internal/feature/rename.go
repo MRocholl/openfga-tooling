@@ -10,8 +10,7 @@ import (
 	"github.com/mrocholl/fga-lsp/internal/analysis"
 )
 
-// identifierPattern is the reference lexer's EXTENDED_IDENTIFIER, which is
-// what a type or relation name has to be.
+// identifierPattern is the reference lexer's EXTENDED_IDENTIFIER, which is what a type or relation name has...
 var identifierPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*([/.-]?[A-Za-z0-9_]+)*$`)
 
 var (
@@ -19,8 +18,7 @@ var (
 	ErrNotDeclared   = errors.New("cannot rename a name that is not declared in this model")
 )
 
-// PrepareRename tells the editor which span it is about to rename, and
-// refuses early for anything that has no declaration to move.
+// PrepareRename tells the editor which span it is about to rename, and refuses early for anything that has...
 func PrepareRename(
 	v *analysis.View,
 	doc *analysis.Document,
@@ -43,8 +41,7 @@ func PrepareRename(
 	return &rng, nil
 }
 
-// Rename rewrites every occurrence of the name under the cursor, across the
-// model files in scope and the store tests that exercise them.
+// Rename rewrites every occurrence of the name under the cursor, across the model files in scope and the...
 func Rename(
 	v *analysis.View,
 	doc *analysis.Document,
@@ -94,8 +91,7 @@ func Rename(
 	return &protocol.WorkspaceEdit{Changes: changes}, nil
 }
 
-// existingName reports a collision, since renaming onto a name that is
-// already taken silently merges two declarations.
+// existingName reports a collision, since renaming onto a name that is already taken silently merges two...
 func existingName(scope analysis.Scope, target Target, newName string) string {
 	switch target.Kind {
 	case TargetType:

@@ -2,17 +2,8 @@
  * @file OpenFGA authorization model DSL
  * @license Apache-2.0
  *
- * Mirrors the reference ANTLR grammar at
- * https://github.com/openfga/language (OpenFGALexer.g4 / OpenFGAParser.g4),
- * schema 1.1 and 1.2 (modular models).
- *
- * Deliberate deviations, all in the direction of leniency so that a
- * half-typed buffer still yields a usable tree:
- *   - newlines are not significant; the reference grammar separates
- *     declarations with NEWLINE, we rely on keywords instead
- *   - type definitions and conditions may interleave
- *   - `or` / `and` / `but not` chains are not checked for homogeneity
- * `fga model validate` remains the authority on what is actually legal.
+ * Mirrors the reference ANTLR grammar in openfga/language, schema 1.1 and
+ * 1.2. Deliberately looser than it; see docs/grammar.md.
  */
 
 /// <reference types="tree-sitter-cli/dsl" />
@@ -94,9 +85,6 @@ module.exports = grammar({
       ),
 
     // ------------------------------------------------------ relation algebra
-    //
-    // A direct assignment `[...]` may only appear as the first operand, which
-    // is why the right-hand operands come from a narrower set.
 
     _relation_def: ($) =>
       choice($.union, $.intersection, $.exclusion, $._operand),
@@ -118,8 +106,6 @@ module.exports = grammar({
         $.grouping,
       ),
 
-    // A parenthesised group may hold a direct assignment even here; the
-    // reference grammar forbids it, `fga model validate` reports it.
     _operand_no_direct: ($) =>
       choice($.computed_relation, $.tupleset_relation, $.grouping),
 
@@ -151,8 +137,7 @@ module.exports = grammar({
     // `user:*`
     wildcard: (_) => seq(':', '*'),
 
-    // `#assignee` -- the `#` outranks a comment so that `role#assignee`
-    // lexes as a restriction rather than swallowing the rest of the line.
+    // The `#` outranks a comment here; see docs/grammar.md.
     relation_suffix: ($) =>
       seq(alias(token(prec(2, '#')), '#'), field('relation', $._dsl_name)),
 
@@ -325,10 +310,7 @@ module.exports = grammar({
         ),
       ),
 
-    // CEL, condition names and parameter names use the plain identifier;
-    // `a.b` there is member access, not one name. Type and relation names use
-    // the extended form, which does admit `.`, `/` and `-` inside a single
-    // name. Both surface as `identifier` in the tree.
+    // Two identifier classes, aliased to one node; see docs/grammar.md.
     identifier: (_) => /[A-Za-z_][A-Za-z0-9_-]*/,
 
     _dsl_name: ($) => alias($._extended_identifier, $.identifier),
@@ -336,7 +318,6 @@ module.exports = grammar({
     _extended_identifier: (_) =>
       token(/[A-Za-z_][A-Za-z0-9_]*([/.-]?[A-Za-z0-9_]+)*/),
 
-    // `#` to end of line in the DSL, `//` to end of line inside a CEL body.
     comment: (_) => token(choice(seq('#', /[^\n]*/), seq('//', /[^\n]*/))),
   },
 });

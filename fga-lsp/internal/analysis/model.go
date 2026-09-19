@@ -7,23 +7,18 @@ import (
 	ts "github.com/tree-sitter/go-tree-sitter"
 )
 
-// RefKind classifies a name used inside a relation definition. Resolving one
-// needs to know what it is looking for: `viewer` after `define x:` is a
-// relation on the enclosing type, the same word inside `[...]` is a type.
+// RefKind classifies a name used inside a relation definition.
 type RefKind int
 
 const (
 	RefType RefKind = iota
-	// RefRelationOnSelf is a relation of the enclosing type: the `viewer` in
-	// `define x: viewer`, and the `parent` in `viewer from parent`.
+	// RefRelationOnSelf is a relation of the enclosing type.
 	RefRelationOnSelf
-	// RefRelationViaTupleset is the `viewer` in `viewer from parent`, which
-	// lives on whatever types `parent` can point at.
+	// RefRelationViaTupleset is the `viewer` in `viewer from parent`.
 	RefRelationViaTupleset
 	// RefRelationOnType is the `member` in `[team#member]`.
 	RefRelationOnType
-	// RefTupleset is the `parent` in `viewer from parent`: a relation of the
-	// enclosing type, but one that has to be directly assignable.
+	// RefTupleset is the `parent` in `viewer from parent`.
 	RefTupleset
 	RefCondition
 )
@@ -32,8 +27,7 @@ const (
 type Ref struct {
 	Kind RefKind
 	Name string
-	// OwnerType is set for RefRelationOnType, Tupleset for
-	// RefRelationViaTupleset.
+	// OwnerType is set for RefRelationOnType, Tupleset for RefRelationViaTupleset.
 	OwnerType string
 	Tupleset  string
 
@@ -41,16 +35,12 @@ type Ref struct {
 	StartByte uint
 	EndByte   uint
 
-	// Text and OuterRange describe the whole construct the name sits in --
-	// `group#member` rather than `group`, `viewer from parent` rather than
-	// `viewer`. Upstream reports several errors against the construct, not
-	// the word.
+	// Text and OuterRange describe the whole construct the name sits in.
 	Text       string
 	OuterRange protocol.Range
 }
 
 // Partial is one operand of a relation's top-level `or`, `and` or `but not`.
-// A relation with no operator has exactly one.
 type Partial struct {
 	Text  string
 	Range protocol.Range
@@ -67,20 +57,14 @@ type RelationDecl struct {
 	Doc       string
 	Expr      string
 
-	// DirectOnly marks a relation that can legally appear on the right of
-	// `from`: defined by a type restriction alone, and restricted to plain
-	// types. A userset (`folder#parent`) or a wildcard (`folder:*`) in that
-	// list disqualifies it, because a tupleset has to name objects to walk
-	// to, not sets of users.
+	// DirectOnly marks a relation that may appear right of `from`. See docs/diagnostics.md.
 	DirectOnly bool
 
 	Partials []Partial
 	Refs     []Ref
 }
 
-// TypeDecl is one `type X` or `extend type X` block. A type may be declared
-// once and extended in any number of modules, so a name maps to several of
-// these.
+// TypeDecl is one `type X` or `extend type X` block.
 type TypeDecl struct {
 	Name   string
 	Extend bool
@@ -204,8 +188,7 @@ func extractRelation(doc *Document, n *ts.Node, typeName string) *RelationDecl {
 	return rel
 }
 
-// onlyPlainTypes reports whether every restriction in a direct assignment
-// names a bare type.
+// onlyPlainTypes reports whether every restriction in a direct assignment names a bare type.
 func onlyPlainTypes(assignment *ts.Node) bool {
 	cursor := assignment.Walk()
 	defer cursor.Close()
@@ -223,8 +206,7 @@ func onlyPlainTypes(assignment *ts.Node) bool {
 	return true
 }
 
-// collectPartials splits a relation's right-hand side at its top-level
-// operator. `a or b or c` yields three; `a` yields one.
+// collectPartials splits a relation's right-hand side at its top-level operator.
 func collectPartials(doc *Document, value *ts.Node) []Partial {
 	switch value.Kind() {
 	case "union", "intersection", "exclusion":
@@ -253,8 +235,7 @@ func collectPartials(doc *Document, value *ts.Node) []Partial {
 	}}
 }
 
-// collectRefs walks a relation's right-hand side and records every name that
-// points at something else in the model.
+// collectRefs records every name a relation's right-hand side points at.
 func collectRefs(doc *Document, n *ts.Node, out *[]Ref) {
 	switch n.Kind() {
 	case "computed_relation":
@@ -371,8 +352,7 @@ func extractCondition(doc *Document, n *ts.Node) *ConditionDecl {
 	return cond
 }
 
-// leadingComment gathers the run of `#` lines directly above a declaration,
-// which is where this codebase puts the rationale worth showing on hover.
+// leadingComment gathers the run of `#` lines opening the lines above a declaration.
 func leadingComment(doc *Document, n *ts.Node) string {
 	var lines []string
 
@@ -388,8 +368,6 @@ func leadingComment(doc *Document, n *ts.Node) string {
 			break
 		}
 
-		// A comment trailing code on the line above documents that line, not
-		// this one. Only a comment that opens its line is a doc comment.
 		if !opensLine(doc, prev) {
 			break
 		}

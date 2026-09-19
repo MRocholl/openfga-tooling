@@ -11,11 +11,6 @@ import (
 )
 
 // Completion offers what can legally follow the cursor.
-//
-// The context is read from the text to the left of the cursor rather than
-// from the parse tree. Completion is asked for mid-token, when the buffer is
-// by definition not a valid model, and a half-typed `define viewer: [us`
-// recovers into a shape the tree cannot describe but the line can.
 func Completion(v *analysis.View, doc *analysis.Document, pos protocol.Position) []protocol.CompletionItem {
 	prefix := linePrefix(doc, pos)
 
@@ -216,16 +211,13 @@ func isWordByte(b byte) bool {
 		(b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || (b >= '0' && b <= '9')
 }
 
-// ---------------------------------------------------------------- yaml side
-
 var (
 	yamlRelationKey = regexp.MustCompile(`^\s*(-\s*)?relation:\s*[\w-]*$`)
 	yamlTypeKey     = regexp.MustCompile(`^\s*(-\s*)?(user|object|type):\s*[\w./-]*$`)
 	yamlAssertion   = regexp.MustCompile(`^\s+[\w-]*$`)
 )
 
-// storeCompletion offers the relations and types of the model a store test
-// points at, in the three places a name can appear.
+// storeCompletion offers the relations and types of the model a store test points at, in the three places a...
 func storeCompletion(
 	scope analysis.Scope,
 	doc *analysis.Document,

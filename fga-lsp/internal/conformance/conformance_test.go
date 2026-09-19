@@ -1,7 +1,3 @@
-// Package conformance checks both halves of this project against the corpus
-// the reference Go, JS and Java implementations are tested against.
-//
-// The corpus is vendored under testdata/upstream; see the README there.
 package conformance_test
 
 import (
@@ -19,23 +15,7 @@ import (
 
 const corpus = "../../testdata/upstream"
 
-// aheadOfTheServer lists cases the corpus calls valid but the pinned
-// `openfga` server still rejects. They are not failures of this project: the
-// corpus tracks openfga/language, which moves ahead of the server release the
-// CLI embeds.
-//
-// Each was confirmed by hand against the real binary. `fga v0.8.0` reports,
-// word for word, what this server reports:
-//
-//	$ fga model validate --file inline.fga
-//	Error: validation error - validate: condition $expression is undefined for relation viewer
-//
-//	$ fga model validate --file cycle.fga
-//	Error: validation error - validate: the definition of relation 'exclusion1'
-//	       in object type 'docs' is invalid: an authorization model cannot contain a cycle
-//
-// Agreeing with the CLI the user actually runs is the point; drop an entry
-// here when bumping `openfga` makes it disagree.
+// aheadOfTheServer lists cases the corpus calls valid but the pinned `openfga` server still rejects.
 var aheadOfTheServer = map[string]string{
 	"inline expression on userset is valid":                                      "$expression not yet known to openfga v1.20.0",
 	"inline expression mixed with plain and named condition is valid":            "$expression not yet known to openfga v1.20.0",
@@ -87,8 +67,7 @@ func loadCases(t *testing.T, name string) []dslCase {
 	return cases
 }
 
-// analyze runs one standalone model through the whole pipeline, the way the
-// server does for a file that no fga.mod claims.
+// analyze runs one standalone model through the whole pipeline, the way the server does for a file that no...
 func analyze(dsl string) []protocol.Diagnostic {
 	index := analysis.NewIndex()
 	uri := analysis.URIFromPath("/conformance/model.fga")
@@ -104,11 +83,7 @@ func analyze(dsl string) []protocol.Diagnostic {
 	return diagnostics
 }
 
-// ------------------------------------------------------------------ grammar
-
-// TestGrammarParsesEveryValidModel is the grammar's conformance check: every
-// model upstream considers well-formed has to yield a tree with no error
-// node, whatever the server then makes of it.
+// TestGrammarParsesEveryValidModel is the grammar's conformance check: every model upstream considers...
 func TestGrammarParsesEveryValidModel(t *testing.T) {
 	t.Parallel()
 
@@ -131,8 +106,6 @@ func TestGrammarParsesEveryValidModel(t *testing.T) {
 		t.Run(filepath.Base(path), func(t *testing.T) {
 			t.Parallel()
 
-			// One upstream fixture is deliberately malformed, to exercise the
-			// transformer's error reporting.
 			if strings.Contains(path, "syntax-error") {
 				t.Skip("upstream fixture is intentionally broken")
 			}
@@ -152,9 +125,7 @@ func TestGrammarParsesEveryValidModel(t *testing.T) {
 	}
 }
 
-// TestGrammarParsesEverySemanticCase covers the other direction: the semantic
-// cases are all syntactically valid by construction, including the ones with
-// wildly misplaced whitespace, so the grammar must not choke on any of them.
+// TestGrammarParsesEverySemanticCase covers the other direction: the semantic cases are all syntactically...
 func TestGrammarParsesEverySemanticCase(t *testing.T) {
 	t.Parallel()
 
@@ -172,10 +143,7 @@ func TestGrammarParsesEverySemanticCase(t *testing.T) {
 	}
 }
 
-// ------------------------------------------------------------- server verdict
-
-// TestSyntaxCasesAgree checks that the server calls a model broken exactly
-// when upstream does.
+// TestSyntaxCasesAgree checks that the server calls a model broken exactly when upstream does.
 func TestSyntaxCasesAgree(t *testing.T) {
 	t.Parallel()
 
@@ -233,10 +201,7 @@ func TestSemanticCasesAgree(t *testing.T) {
 	}
 }
 
-// TestSemanticCasePositions holds the server to upstream's exact wording and
-// range for the checks it implements itself. The error types left out are the
-// ones delegated to openfga's typesystem, which reports them in its own words
-// and without a source position.
+// TestSemanticCasePositions holds the server to upstream's exact wording and range for the checks it...
 func TestSemanticCasePositions(t *testing.T) {
 	t.Parallel()
 

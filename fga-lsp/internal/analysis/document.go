@@ -10,8 +10,7 @@ import (
 	ts "github.com/tree-sitter/go-tree-sitter"
 )
 
-// Kind tells the three file shapes apart. They share a workspace and refer to
-// one another, so the index carries all of them.
+// Kind tells the three file shapes apart.
 type Kind int
 
 const (
@@ -36,8 +35,7 @@ func KindOf(path string) Kind {
 	}
 }
 
-// Document is one file as the server currently understands it: the text that
-// was last synced, its parse tree, and whatever symbols were extracted.
+// Document is one file as the server currently understands it.
 type Document struct {
 	URI     protocol.DocumentUri
 	Path    string
@@ -49,8 +47,7 @@ type Document struct {
 	// Model documents only.
 	Tree   *ts.Tree
 	Module string
-	// Schema and SchemaRange come from a `model` header. HasHeader
-	// distinguishes a missing header from a malformed one.
+	// Schema and SchemaRange come from a `model` header.
 	Schema      string
 	SchemaRange protocol.Range
 	HasHeader   bool
@@ -108,14 +105,7 @@ func Language() *ts.Language {
 	return language
 }
 
-// Parse builds a tree for content, reusing old for incremental reparsing when
-// the caller has one.
-//
-// A parser is built per call rather than pooled. go-tree-sitter registers no
-// finalizers, so a sync.Pool -- which drops its contents on any GC cycle --
-// leaks the C parser behind every entry it discards, unbounded over the life
-// of a server. Constructing one costs an allocation next to nothing against
-// the parse itself.
+// Parse builds a tree for content, reusing old for incremental reparsing when the caller has one.
 func Parse(content []byte, old *ts.Tree) *ts.Tree {
 	parser := ts.NewParser()
 	defer parser.Close()

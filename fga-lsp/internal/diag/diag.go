@@ -1,13 +1,3 @@
-// Package diag turns the state of a workspace into LSP diagnostics.
-//
-// Three passes, cheapest first, each gating the next:
-//
-//  1. the tree-sitter tree, which has an answer for a half-typed buffer;
-//  2. the reference transformer, which decides whether the DSL is legal;
-//  3. openfga's own typesystem, the same check `fga model validate` runs.
-//
-// Passes 2 and 3 answer for a whole module set at once, so the result is
-// keyed by document: editing one module reports errors in its siblings.
 package diag
 
 import (
@@ -27,8 +17,7 @@ import (
 
 const source = "fga"
 
-// Result maps each affected document to its complete diagnostic list. A
-// document present with an empty slice has its diagnostics cleared.
+// Result maps each affected document to its complete diagnostic list.
 type Result map[protocol.DocumentUri][]protocol.Diagnostic
 
 func (r Result) add(uri protocol.DocumentUri, d protocol.Diagnostic) {
@@ -41,8 +30,7 @@ func (r Result) touch(uri protocol.DocumentUri) {
 	}
 }
 
-// Compute produces diagnostics for doc and every document that shares its
-// module set.
+// Compute produces diagnostics for doc and every document that shares its module set.
 func Compute(view *analysis.View, doc *analysis.Document) Result {
 	result := Result{}
 	result.touch(doc.URI)
@@ -60,8 +48,6 @@ func Compute(view *analysis.View, doc *analysis.Document) Result {
 	return result
 }
 
-// ------------------------------------------------------------------- models
-
 func modelDiagnostics(view *analysis.View, doc *analysis.Document, result Result) {
 	set := moduleSet(view, doc)
 	for _, member := range set.docs {
@@ -71,23 +57,13 @@ func modelDiagnostics(view *analysis.View, doc *analysis.Document, result Result
 	syntaxBroken := false
 
 	for _, member := range set.docs {
-		// tree-sitter first: it has an answer for a half-typed buffer, and
-		// its ranges are tighter. ANTLR only runs when that pass is happy,
-		// to catch what the looser grammar lets through without reporting
-		// the same break twice.
 		if syntaxErrors(member, result) || antlrSyntaxErrors(member, result) {
 			syntaxBroken = true
 		}
 	}
 
-	// Name resolution runs even when the DSL does not compile: an unknown
-	// relation is exactly what a half-finished edit produces, and pointing at
-	// it is more useful than waiting for the file to become valid.
 	names := scopeOf(view, set.scoped())
 
-	// Names that resolution has already reported. The typesystem repeats them
-	// in its own words, and having no source position for an undefined
-	// relation, would pin the repeat to the top of the file.
 	covered := map[string]struct{}{}
 
 	for _, member := range set.docs {
@@ -112,8 +88,7 @@ func modelDiagnostics(view *analysis.View, doc *analysis.Document, result Result
 	}
 }
 
-// syntaxErrors walks the parse tree for error and missing nodes. It reports
-// whether any were found.
+// syntaxErrors walks the parse tree for error and missing nodes.
 func syntaxErrors(doc *analysis.Document, result Result) bool {
 	root := doc.Root()
 	if root == nil || !root.HasError() {
@@ -160,9 +135,7 @@ func syntaxErrors(doc *analysis.Document, result Result) bool {
 	return found
 }
 
-// reportTypesystem maps an openfga validation failure onto the declaration it
-// names. Anything already reported by name resolution is dropped, since that
-// pass underlines the offending word rather than the whole line.
+// reportTypesystem maps an openfga validation failure onto the declaration it names.
 func reportTypesystem(
 	view *analysis.View,
 	set moduleSetInfo,
@@ -205,9 +178,7 @@ func reportTypesystem(
 	}
 }
 
-// messageSubjects recover a type and relation from an error that carries no
-// structured fields. Most of the typesystem's failures are plain fmt.Errorf
-// values, and without this every one of them lands on line 1 of the file.
+// messageSubjects recover a type and relation from an error that carries no structured fields.
 var messageSubjects = []*regexp.Regexp{
 	regexp.MustCompile(`relation '([^']+)' in object type '([^']+)'`),
 	regexp.MustCompile(`on '([^']+)' in object type '([^']+)'`),
@@ -246,8 +217,6 @@ func subjectFromMessage(message string) (objectType, relation string) {
 			continue
 		}
 
-		// The last pattern reads `type#relation`; the others name the
-		// relation first.
 		if i == len(messageSubjects)-1 {
 			return match[1], match[2]
 		}
@@ -309,8 +278,6 @@ func typeRange(
 	return "", protocol.Range{}, false
 }
 
-// ------------------------------------------------------------------ helpers
-
 func diagnostic(rng protocol.Range, message string, severity protocol.DiagnosticSeverity) protocol.Diagnostic {
 	src := source
 
@@ -370,7 +337,6 @@ func firstLine(s string) string {
 		s = s[:idx]
 	}
 
-	// Truncating by byte can split a rune and put invalid UTF-8 on the wire.
 	const limit = 40
 
 	if utf8.RuneCountInString(s) <= limit {

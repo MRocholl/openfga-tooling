@@ -16,12 +16,6 @@ const (
 )
 
 // Format re-renders a model file from its parse tree.
-//
-// It refuses to touch a file that does not parse: a formatter that runs on a
-// broken buffer deletes whatever it failed to understand. Comments are nodes
-// in the tree rather than discarded trivia, so they survive, and a CEL body
-// is copied verbatim because normalising an expression language the DSL only
-// embeds is not this formatter's business.
 func Format(doc *analysis.Document) []protocol.TextEdit {
 	root := doc.Root()
 	if root == nil || root.HasError() {
@@ -54,8 +48,6 @@ func renderFile(doc *analysis.Document, root *ts.Node) string {
 	for _, child := range root.NamedChildren(cursor) {
 		start := int(child.StartPosition().Row)
 
-		// One blank line is kept wherever the author left one or more; the
-		// grouping of a long model is the author's, not the formatter's.
 		if previousEnd >= 0 && start > previousEnd+1 {
 			b.WriteString("\n")
 		}
@@ -177,8 +169,7 @@ func renderExpr(doc *analysis.Document, n *ts.Node) string {
 	return strings.TrimSpace(doc.Text(n))
 }
 
-// operands collects the parts of a binary form, skipping the `but not` token
-// which is a named node so that it can be highlighted.
+// operands collects the parts of a binary form, skipping the `but not` token which is a named node so that...
 func operands(doc *analysis.Document, n *ts.Node) []string {
 	cursor := n.Walk()
 	defer cursor.Close()
@@ -282,8 +273,7 @@ func renderConditionBody(doc *analysis.Document, body *ts.Node) string {
 	return b.String()
 }
 
-// commonIndent is the whitespace every non-blank line starts with, which is
-// the indentation the body sat at before being moved.
+// commonIndent is the whitespace every non-blank line starts with, which is the indentation the body sat at...
 func commonIndent(lines []string) string {
 	common := ""
 	first := true

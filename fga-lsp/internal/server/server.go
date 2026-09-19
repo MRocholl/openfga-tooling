@@ -1,4 +1,3 @@
-// Package server wires the language features onto the LSP transport.
 package server
 
 import (
@@ -18,15 +17,10 @@ import (
 // Name is how the server identifies itself to a client.
 const Name = "fga-lsp"
 
-// Server holds the workspace. Everything it answers is derived from the
-// index, so a request never reaches the filesystem for a file the editor has
-// open.
+// Server holds the workspace.
 type Server struct {
-	index   *analysis.Index
-	version string
-	// published remembers which documents currently carry diagnostics, so
-	// that a file which becomes clean gets an explicit empty publish rather
-	// than keeping stale squiggles.
+	index     *analysis.Index
+	version   string
 	published map[protocol.DocumentUri]struct{}
 }
 
@@ -102,8 +96,7 @@ func (s *Server) initialize(_ *glsp.Context, params *protocol.InitializeParams) 
 	}, nil
 }
 
-// roots collects the directories to scan, preferring workspace folders and
-// falling back to the deprecated root fields that some clients still send.
+// roots collects the directories to scan.
 func roots(params *protocol.InitializeParams) []string {
 	var out []string
 
@@ -130,8 +123,7 @@ func roots(params *protocol.InitializeParams) []string {
 	return nil
 }
 
-// scan loads every model, store test and fga.mod under root. Cross-file
-// features need the whole set before the first file is opened.
+// scan loads every model, store test and fga.mod under root.
 func (s *Server) scan(root string) {
 	_ = filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
@@ -170,8 +162,6 @@ func skipDir(name string) bool {
 	return strings.HasPrefix(name, ".") && name != "."
 }
 
-// ------------------------------------------------- document synchronisation
-
 func (s *Server) didOpen(ctx *glsp.Context, params *protocol.DidOpenTextDocumentParams) error {
 	s.index.Put(params.TextDocument.URI, params.TextDocument.Version, []byte(params.TextDocument.Text))
 	s.index.EnsureReferences(params.TextDocument.URI)
@@ -202,8 +192,6 @@ func (s *Server) didSave(ctx *glsp.Context, params *protocol.DidSaveTextDocument
 }
 
 func (s *Server) didClose(ctx *glsp.Context, params *protocol.DidCloseTextDocumentParams) error {
-	// The file stays in the index, re-read from disk: closing a module must
-	// not make its types vanish from the sibling that is still open.
 	path := analysis.PathFromURI(params.TextDocument.URI)
 
 	content, err := os.ReadFile(path) //nolint:gosec
@@ -220,9 +208,7 @@ func (s *Server) didClose(ctx *glsp.Context, params *protocol.DidCloseTextDocume
 	return nil
 }
 
-// fullText pulls the replacement text out of a didChange. The server
-// advertises full synchronisation, so a ranged change is a client bug rather
-// than something to apply blindly.
+// fullText pulls the replacement text out of a didChange.
 func fullText(changes []any) (string, bool) {
 	for _, change := range changes {
 		switch typed := change.(type) {
@@ -238,8 +224,7 @@ func fullText(changes []any) (string, bool) {
 	return "", false
 }
 
-// publish recomputes diagnostics for a document and everything that shares
-// its model, and clears any file that has become clean.
+// publish recomputes diagnostics for a document and everything sharing its model.
 func (s *Server) publish(ctx *glsp.Context, uri protocol.DocumentUri) {
 	results := diag.Result{}
 
@@ -253,8 +238,6 @@ func (s *Server) publish(ctx *glsp.Context, uri protocol.DocumentUri) {
 			results[target] = append(results[target], diags...)
 		}
 
-		// A model change can invalidate a store test that never moved, so the
-		// tests pointing at this model are recomputed too.
 		if doc.Kind != analysis.KindStoreTest {
 			for _, store := range storesFor(v, doc) {
 				for target, diags := range diag.Compute(v, store) {
@@ -302,8 +285,6 @@ func storesFor(v *analysis.View, doc *analysis.Document) []*analysis.Document {
 
 	return out
 }
-
-// ------------------------------------------------------------- features
 
 func (s *Server) definition(
 	_ *glsp.Context,
@@ -441,8 +422,7 @@ func (s *Server) formatting(
 	return out, nil
 }
 
-// withDoc runs fn against a document under the index read lock, doing nothing
-// when the document is unknown.
+// withDoc runs fn against a document under the index read lock, doing nothing when the document is unknown.
 func (s *Server) withDoc(uri protocol.DocumentUri, fn func(*analysis.View, *analysis.Document)) {
 	s.index.Read(func(v *analysis.View) {
 		if doc := v.Get(uri); doc != nil {

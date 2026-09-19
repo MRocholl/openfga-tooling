@@ -6,17 +6,9 @@ import (
 	"github.com/mrocholl/fga-lsp/internal/analysis"
 )
 
-// scope is the set of model documents a name is resolved against. A workspace
-// can hold several unrelated models, so resolving against everything would
-// call a name defined in the wrong store "known".
-//
-// An fga.mod draws the boundary exactly. A module file that no fga.mod claims
-// has no boundary to draw, and falls back to the whole workspace rather than
-// reporting every sibling module's types as unknown.
+// scope is the set of model documents a name is resolved against.
 type scope struct {
-	docs []*analysis.Document
-	// transient is a document built for this call alone -- an inline model
-	// out of a store test -- whose parse tree the caller has to free.
+	docs      []*analysis.Document
 	transient *analysis.Document
 }
 

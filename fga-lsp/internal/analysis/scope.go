@@ -3,12 +3,6 @@ package analysis
 import "sort"
 
 // Scope is the set of model documents a name is resolved against.
-//
-// A workspace can hold several unrelated models, so resolving against
-// everything would call a name defined in the wrong store "known". An fga.mod
-// draws the boundary exactly; a module file no fga.mod claims has no boundary
-// to draw and falls back to the whole workspace, which is better than
-// reporting every sibling module's types as unknown.
 type Scope struct {
 	Docs []*Document
 }
@@ -52,8 +46,7 @@ func ScopeFor(v *View, doc *Document) Scope {
 	return Scope{Docs: v.ModelDocs()}
 }
 
-// scopeOfModelRef resolves a store's `model_file`, which is either an fga.mod
-// or a single model.
+// scopeOfModelRef resolves a store's `model_file`, which is either an fga.mod or a single model.
 func scopeOfModelRef(v *View, path string) (Scope, bool) {
 	if mod := v.GetByPath(path); mod != nil && mod.Kind == KindModFile && mod.Mod != nil {
 		var paths []string
@@ -119,8 +112,7 @@ func (s Scope) HasRelation(typeName, relation string) bool {
 	return len(s.RelationDecls(typeName, relation)) > 0
 }
 
-// RelationsOf lists a type's relations across every declaration of it,
-// deduplicated by name and in declaration order.
+// RelationsOf lists a type's relations across every declaration of it, deduplicated by name and in...
 func (s Scope) RelationsOf(typeName string) []*RelationDecl {
 	seen := map[string]struct{}{}
 
@@ -187,8 +179,7 @@ func (s Scope) Conditions() []*ConditionDecl {
 	return out
 }
 
-// TuplesetTargets lists the types a tupleset relation can point at, which is
-// where `X from tupleset` has to find X.
+// TuplesetTargets lists the types a tupleset relation can point at, which is where `X from tupleset` has to...
 func (s Scope) TuplesetTargets(typeName, tupleset string) []string {
 	seen := map[string]struct{}{}
 

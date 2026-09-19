@@ -8,13 +8,7 @@ import (
 	ts "github.com/tree-sitter/go-tree-sitter"
 )
 
-// LineIndex converts between the three coordinate systems in play: byte
-// offsets (tree-sitter and Go), row/byte-column points (tree-sitter), and
-// LSP positions, whose character is a count of UTF-16 code units.
-//
-// The distinction only shows up once a line holds a non-ASCII rune, which in
-// practice means a comment, but a comment sits on the same line as the code
-// it documents often enough to matter.
+// LineIndex converts between byte offsets, tree-sitter points and LSP positions. See docs/diagnostics.md.
 type LineIndex struct {
 	content []byte
 	starts  []int
@@ -105,8 +99,7 @@ func (li *LineIndex) NodeRange(n *ts.Node) protocol.Range {
 	}
 }
 
-// LineRange spans a whole line, for diagnostics that name a construct but no
-// offset within it.
+// LineRange spans a whole line, for diagnostics that name a construct but no offset within it.
 func (li *LineIndex) LineRange(line int) protocol.Range {
 	return protocol.Range{
 		Start: protocol.Position{Line: protocol.UInteger(line)},

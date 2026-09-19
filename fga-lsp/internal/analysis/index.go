@@ -9,10 +9,7 @@ import (
 	protocol "github.com/tliron/glsp/protocol_3_16"
 )
 
-// Index holds every file the server knows about. Authorization models are
-// small -- tens of files, hundreds of relations -- so queries walk the
-// documents rather than maintaining derived maps that would need
-// invalidating.
+// Index holds every file the server knows about.
 type Index struct {
 	mu     sync.RWMutex
 	docs   map[protocol.DocumentUri]*Document
@@ -26,12 +23,7 @@ func NewIndex() *Index {
 	}
 }
 
-// View is a read-locked window onto the index. Every query method lives here
-// so that a feature can ask several questions against one consistent state.
-//
-// A View, and every *Document reached through it, is valid only inside the
-// Read callback: a later Put frees the tree behind a replaced document. Copy
-// out what is needed rather than keeping the pointer.
+// View is a read-locked window onto the index.
 type View struct {
 	docs   map[protocol.DocumentUri]*Document
 	byPath map[string]*Document
@@ -45,19 +37,12 @@ func (ix *Index) Read(fn func(v *View)) {
 }
 
 // Put analyses content and stores it, replacing whatever was there.
-//
-// It deliberately returns nothing. Handing back the stored *Document would
-// invite a caller to hold it across the next Put, which frees the tree behind
-// it; read it inside Read instead.
 func (ix *Index) Put(uri protocol.DocumentUri, version protocol.Integer, content []byte) {
 	doc := Analyze(uri, version, content)
 
 	ix.mu.Lock()
 	defer ix.mu.Unlock()
 
-	// An out-of-order didChange must not install a stale buffer over a newer
-	// one. Version 0 means "loaded from disk", which anything synced wins
-	// over.
 	if previous, ok := ix.docs[uri]; ok {
 		if version > 0 && previous.Version > version {
 			doc.Close()
@@ -92,16 +77,7 @@ func (ix *Index) Delete(uri protocol.DocumentUri) {
 	delete(ix.docs, uri)
 }
 
-// EnsureReferences loads the files a document points at but the index has not
-// seen: the modules an fga.mod lists, the model a store test names, and the
-// fga.mod that claims a module.
-//
-// Without it, a client that only syncs the files it opens gives the server a
-// truncated module set, and every name defined in a sibling module resolves
-// to "unknown relation" -- a correct line reported as an error.
-//
-// Resolution is transitive and reaches a fixed point: opening a module finds
-// its fga.mod, which in turn names the siblings that complete the set.
+// EnsureReferences loads referenced files the index has not seen, transitively. See docs/resolution.md.
 func (ix *Index) EnsureReferences(uri protocol.DocumentUri) {
 	const maxRounds = 8
 
@@ -143,9 +119,7 @@ func (ix *Index) has(uri protocol.DocumentUri) bool {
 	return ok
 }
 
-// unresolved collects what every known document still needs. Sweeping all of
-// them, rather than following one document's references, is what makes the
-// walk transitive without tracking which file introduced which reference.
+// unresolved collects what every known document still needs.
 func (ix *Index) unresolved() []string {
 	ix.mu.RLock()
 	defer ix.mu.RUnlock()
@@ -171,8 +145,7 @@ func (ix *Index) unresolved() []string {
 	return missing
 }
 
-// unresolvedReferences lists the on-disk files doc depends on that are not in
-// the index yet.
+// unresolvedReferences lists the on-disk files doc depends on that are not in the index yet.
 func (v *View) unresolvedReferences(doc *Document) []string {
 	var wanted []string
 
@@ -211,8 +184,6 @@ func (v *View) unresolvedReferences(doc *Document) []string {
 }
 
 // findModFile walks up from a module looking for the fga.mod that lists it.
-// Models sit beside their fga.mod or a directory or two below it; the walk
-// stops well before the filesystem root.
 func findModFile(path string) string {
 	const maxLevels = 4
 
@@ -235,15 +206,12 @@ func findModFile(path string) string {
 	return ""
 }
 
-// Analyze parses and extracts a single document, choosing how to read it
-// from its file name.
+// Analyze parses and extracts a single document, choosing how to read it from its file name.
 func Analyze(uri protocol.DocumentUri, version protocol.Integer, content []byte) *Document {
 	return AnalyzeAs(uri, version, content, KindOf(PathFromURI(uri)))
 }
 
-// AnalyzeAs is Analyze for content whose kind the file name does not give
-// away -- the DSL inside a store test's inline `model:` block, which has no
-// file of its own.
+// AnalyzeAs is Analyze for content whose kind the file name does not give away.
 func AnalyzeAs(uri protocol.DocumentUri, version protocol.Integer, content []byte, kind Kind) *Document {
 	path := PathFromURI(uri)
 
@@ -269,8 +237,6 @@ func AnalyzeAs(uri protocol.DocumentUri, version protocol.Integer, content []byt
 
 	return doc
 }
-
-// ---------------------------------------------------------------- queries
 
 func (v *View) Get(uri protocol.DocumentUri) *Document { return v.docs[uri] }
 
@@ -302,8 +268,7 @@ func (v *View) ModelDocs() []*Document {
 	return out
 }
 
-// TypeDecls returns every declaration of a type name, the original and each
-// `extend type`, in workspace order.
+// TypeDecls returns every declaration of a type name, the original and each `extend type`, in workspace order.
 func (v *View) TypeDecls(name string) []*TypeDecl {
 	var out []*TypeDecl
 
@@ -341,8 +306,7 @@ func (v *View) TypeNames() []string {
 	return out
 }
 
-// RelationDecls returns every `define` of relation on typeName. More than one
-// means the model declares it twice, which is an error the validator reports.
+// RelationDecls returns every `define` of relation on typeName.
 func (v *View) RelationDecls(typeName, relation string) []*RelationDecl {
 	var out []*RelationDecl
 
@@ -357,8 +321,7 @@ func (v *View) RelationDecls(typeName, relation string) []*RelationDecl {
 	return out
 }
 
-// RelationsOfType lists the relations a type has, across all its
-// declarations, in declaration order and deduplicated by name.
+// RelationsOfType lists a type's relations across all its declarations.
 func (v *View) RelationsOfType(typeName string) []*RelationDecl {
 	seen := map[string]struct{}{}
 
@@ -409,9 +372,7 @@ func (v *View) ConditionNames() []string {
 	return out
 }
 
-// ModuleSetFor returns the fga.mod that lists path, and the model files it
-// names. A model that no fga.mod claims stands alone, and the returned mod is
-// nil.
+// ModuleSetFor returns the fga.mod that lists path, and the model files it names.
 func (v *View) ModuleSetFor(path string) (mod *Document, members []string) {
 	for _, doc := range v.Documents() {
 		if doc.Kind != KindModFile || doc.Mod == nil {
@@ -450,8 +411,7 @@ func modMembers(mod *Document) []string {
 	return out
 }
 
-// Contents returns the text of path, preferring the synced buffer over disk
-// so that diagnostics reflect what is on screen.
+// Contents returns the text of path, preferring the synced buffer over disk.
 func (v *View) Contents(path string) ([]byte, error) {
 	if doc := v.GetByPath(path); doc != nil {
 		return doc.Content, nil

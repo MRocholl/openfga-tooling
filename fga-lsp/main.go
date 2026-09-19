@@ -1,12 +1,3 @@
-// Command fga-lsp is a language server for the OpenFGA authorization model
-// DSL and its store-test files.
-//
-// It speaks LSP over stdin/stdout, which is what an editor expects:
-//
-//	fga-lsp
-//
-// Nothing but protocol traffic may reach stdout, so logging goes to a file
-// when -log is given and is discarded otherwise.
 package main
 
 import (
@@ -60,8 +51,7 @@ func main() {
 	}
 }
 
-// configureLogging keeps every log line away from stdout, which carries the
-// protocol.
+// configureLogging keeps every log line away from stdout, which carries the protocol.
 func configureLogging(path string, verbosity int) {
 	if path == "" {
 		commonlog.Configure(-4, nil)

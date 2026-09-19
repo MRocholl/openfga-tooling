@@ -48,8 +48,6 @@ type document
 func TestStoreTestRangesUseTheReportedColumn(t *testing.T) {
 	t.Parallel()
 
-	// `read` also occurs inside `can_read` earlier on the same line; the
-	// range has to land on the key that is actually being described.
 	doc := analysis.Analyze(analysis.URIFromPath("/t/s.fga.yaml"), 1, []byte(`name: s
 tests:
   - name: t

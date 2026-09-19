@@ -8,8 +8,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Field is a scalar drawn out of a store-test YAML, kept with the range it
-// occupies so a diagnostic or a goto can point at it.
+// Field is a scalar from a store-test YAML, with the range it occupies.
 type Field struct {
 	Value string
 	Range protocol.Range
@@ -69,8 +68,7 @@ type StoreTest struct {
 	ModelFile Field
 	// ModelPath is ModelFile resolved against the store file's directory.
 	ModelPath string
-	// InlineModel is the `model: |` block, when the store carries one instead
-	// of pointing at a file. Line is where the block's first line sits.
+	// InlineModel is the `model: |` block, when the store carries one instead of pointing at a file.
 	InlineModel     string
 	InlineModelLine int
 
@@ -116,8 +114,6 @@ func (d *Document) parseStoreMapping(store *StoreTest, mapping *yaml.Node) {
 			store.ModelFile = d.field(value)
 		case "model":
 			store.InlineModel = value.Value
-			// yaml.v3 reports the line of the `|` indicator; the block's
-			// content starts on the next one.
 			store.InlineModelLine = value.Line
 		case "tuples":
 			store.Tuples = d.tuples(value)
@@ -271,8 +267,6 @@ func (d *Document) listUsers(seq *yaml.Node) []ListUsers {
 	return out
 }
 
-// ---------------------------------------------------------------- yaml glue
-
 func forEachPair(mapping *yaml.Node, fn func(key string, value *yaml.Node)) {
 	if mapping == nil || mapping.Kind != yaml.MappingNode {
 		return
@@ -310,14 +304,6 @@ func (d *Document) fields(seq *yaml.Node) []Field {
 }
 
 // scalarRange locates a scalar's text on its line.
-//
-// The search starts at the column yaml.v3 reports rather than at the start of
-// the line, because a flow mapping puts several scalars on one line and a
-// name that is a suffix of an earlier one would otherwise underline the wrong
-// text: in `{can_read: true, read: true}` a search for `read` finds the one
-// inside `can_read`. The reported column points at the opening quote for a
-// quoted scalar, so searching from there rather than taking it literally
-// lands inside the quotes either way.
 func (d *Document) scalarRange(node *yaml.Node) protocol.Range {
 	line := node.Line - 1
 	if line < 0 {
@@ -376,8 +362,7 @@ func lastLine(node *yaml.Node) int {
 	return line
 }
 
-// yamlTrue reads a YAML 1.1 boolean, which admits more spellings than Go's
-// strconv does.
+// yamlTrue reads a YAML 1.1 boolean, which admits more spellings than Go's strconv does.
 func yamlTrue(node *yaml.Node) bool {
 	if node == nil {
 		return false
@@ -391,8 +376,7 @@ func yamlTrue(node *yaml.Node) bool {
 	return false
 }
 
-// SplitTupleUser breaks `user:alice#member` into its object and optional
-// relation halves. A wildcard `user:*` keeps the `*` as the id.
+// SplitTupleUser breaks `user:alice#member` into its object and optional relation halves.
 func SplitTupleUser(user string) (objectType, objectID, relation string) {
 	rest := user
 

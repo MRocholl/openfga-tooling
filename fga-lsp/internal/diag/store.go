@@ -11,9 +11,7 @@ import (
 	"github.com/mrocholl/fga-lsp/internal/analysis"
 )
 
-// storeDiagnostics checks a `.fga.yaml` against the model it points at:
-// tuple and check syntax, and whether every type and relation it names is
-// actually in that model.
+// storeDiagnostics checks a `.fga.yaml` against the model it points at.
 func storeDiagnostics(view *analysis.View, doc *analysis.Document, result Result) {
 	store := doc.Store
 	if store == nil {
@@ -31,8 +29,6 @@ func storeDiagnostics(view *analysis.View, doc *analysis.Document, result Result
 		return
 	}
 
-	// An inline model is parsed for this call alone; its tree is C memory
-	// that nothing else will free.
 	defer names.close()
 
 	checker := storeChecker{doc: doc, names: names, result: result}
@@ -60,22 +56,15 @@ func storeDiagnostics(view *analysis.View, doc *analysis.Document, result Result
 	}
 }
 
-// storeScope resolves `model_file` to the documents that back this store. It
-// reports when the reference does not resolve, and returns ok=false whenever
-// there is nothing to check against.
+// storeScope resolves `model_file` to the documents that back this store.
 func storeScope(view *analysis.View, doc *analysis.Document, result Result) (scope, bool) {
 	store := doc.Store
 
 	if !store.ModelFile.IsSet() {
-		// An inline `model:` block is parsed as its own model; without either
-		// there is nothing to resolve names against.
 		if store.InlineModel == "" {
 			return scope{}, false
 		}
 
-		// The kind has to be stated: the block has no file name of its own,
-		// and anything derived from the store's own URI would be read back as
-		// a store test, leaving every type in it undeclared.
 		inline := analysis.AnalyzeAs(
 			doc.URI+"#model",
 			doc.Version,
@@ -162,8 +151,7 @@ func (c storeChecker) tuple(tuple analysis.Tuple) {
 	}
 }
 
-// object validates an `object:` field and returns its type when the type is
-// one the model declares.
+// object validates an `object:` field and returns its type when the type is one the model declares.
 func (c storeChecker) object(field analysis.Field) string {
 	if !field.IsSet() {
 		return ""
@@ -186,8 +174,7 @@ func (c storeChecker) object(field analysis.Field) string {
 	return objectType
 }
 
-// user validates a `user:` field, which may be an object, a userset
-// `type:id#relation`, or a wildcard `type:*`.
+// user validates a `user:` field, which may be an object, a userset `type:id#relation`, or a wildcard `type:*`.
 func (c storeChecker) user(field analysis.Field) {
 	if !field.IsSet() {
 		return
@@ -291,8 +278,7 @@ func (c storeChecker) unknownRelation(typeName, relation string) string {
 	return fmt.Sprintf("type %q has no relation %q%s", typeName, relation, suggest(relation, candidates))
 }
 
-// suggest offers the closest known name, which in a model of near-identical
-// `can_*` relations is most of the value of the diagnostic.
+// suggest offers the closest known name.
 func suggest(name string, candidates []string) string {
 	best, bestDistance := "", len(name)/2+1
 
@@ -339,8 +325,6 @@ func editDistance(a, b string) int {
 	return previous[len(b)]
 }
 
-// ------------------------------------------------------------------ fga.mod
-
 func modDiagnostics(view *analysis.View, doc *analysis.Document, result Result) {
 	mod := doc.Mod
 	if mod == nil {
@@ -377,8 +361,6 @@ func modDiagnostics(view *analysis.View, doc *analysis.Document, result Result) 
 		result.touch(analysis.URIFromPath(entry.Path))
 	}
 
-	// Building the set here means a broken module is reported on the module,
-	// not only on the fga.mod that happens to be open.
 	if len(mod.Contents) == 0 {
 		return
 	}

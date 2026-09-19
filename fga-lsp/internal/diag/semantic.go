@@ -9,15 +9,6 @@ import (
 	"github.com/mrocholl/fga-lsp/internal/analysis"
 )
 
-// The semantic checks below are deliberately worded and positioned to match
-// openfga/language's own validator, case for case, against the corpus in
-// testdata/upstream. Reusing its wording is not pedantry: it is what makes a
-// squiggle here say the same thing as `fga model validate` in the terminal
-// and as the official editor plugins, so nobody has to learn two vocabularies
-// for one mistake.
-//
-// The type and relation naming rules are openfga's, reproduced here because
-// the reference implementation quotes them verbatim in its message.
 var (
 	typeNamePattern     = regexp.MustCompile(`^[^:#@*\s]{1,254}$`)
 	relationNamePattern = regexp.MustCompile(`^[^:#@*\s]{1,50}$`)
@@ -28,17 +19,13 @@ const (
 	relationNameRule = `^[^:#@\*\s]{1,50}$`
 )
 
-// reservedNames may not be used for a type or a relation: both already mean
-// something inside a relation definition.
+// reservedNames may not be used for a type or a relation.
 var reservedNames = map[string]bool{"self": true, "this": true}
 
-// supportedSchemas are the schema versions this server, and the `fga` release
-// it is pinned to, understand.
+// supportedSchemas are the schema versions the pinned `fga` release understands.
 var supportedSchemas = map[string]bool{"1.1": true, "1.2": true}
 
-// semanticErrors reports everything that is wrong with a model that is not a
-// syntax error, in upstream's terms. covered records what it reported, so the
-// typesystem pass can avoid saying the same thing again in its own words.
+// semanticErrors reports what is wrong with a model short of a syntax error.
 func semanticErrors(
 	names scope,
 	doc *analysis.Document,
@@ -88,8 +75,7 @@ func semanticErrors(
 	unusedConditions(names, doc, result)
 }
 
-// schemaErrors checks the `model` header. A module inside an fga.mod takes
-// its schema version from there and carries none of its own.
+// schemaErrors checks the `model` header.
 func schemaErrors(doc *analysis.Document, inModuleSet bool, result Result) {
 	if inModuleSet {
 		return
@@ -151,8 +137,7 @@ func nameErrors(typeDecl *analysis.TypeDecl, result Result, doc *analysis.Docume
 	}
 }
 
-// duplicateTypes reports a type declared twice. An `extend type` is not a
-// redeclaration, which is the whole point of it.
+// duplicateTypes reports a type declared twice.
 func duplicateTypes(names scope, doc *analysis.Document, result Result) {
 	for _, typeDecl := range doc.Types {
 		if typeDecl.Extend {
@@ -265,9 +250,7 @@ func firstRestriction(refs []analysis.Ref, text string) protocol.Range {
 	return protocol.Range{}
 }
 
-// resolveRef reports what is wrong with one reference, or nothing when it
-// resolves. A tupleset whose relation points at several types yields one
-// problem per type, which is how upstream reports it.
+// resolveRef reports what is wrong with one reference, one problem per candidate type.
 func resolveRef(names scope, enclosingType string, ref analysis.Ref) []problem {
 	one := func(message string, rng protocol.Range) []problem {
 		return []problem{{message: message, rng: rng}}
@@ -297,8 +280,6 @@ func resolveRef(names scope, enclosingType string, ref analysis.Ref) []problem {
 		}
 
 	case analysis.RefTupleset:
-		// The name to the right of `from` has to be a relation of the
-		// enclosing type, and one that names plain types.
 		decls := names.relationDecls(enclosingType, ref.Name)
 		if len(decls) == 0 {
 			return one(
@@ -353,9 +334,7 @@ func resolveRef(names scope, enclosingType string, ref analysis.Ref) []problem {
 	return nil
 }
 
-// unusedConditions reports a condition no type restriction mentions. A
-// condition that nothing applies is dead weight the model carries into every
-// evaluation.
+// unusedConditions reports a condition no type restriction mentions.
 func unusedConditions(names scope, doc *analysis.Document, result Result) {
 	used := map[string]bool{}
 
@@ -384,8 +363,7 @@ func unusedConditions(names scope, doc *analysis.Document, result Result) {
 	}
 }
 
-// refKeys names what a failed reference was looking for, in the same terms
-// the typesystem reports its own failures in.
+// refKeys names what a failed reference was looking for, in the typesystem's terms.
 func refKeys(names scope, enclosingType string, ref analysis.Ref) []string {
 	switch ref.Kind {
 	case analysis.RefType:

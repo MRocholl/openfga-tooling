@@ -1,27 +1,14 @@
--- Neovim wiring for the OpenFGA authorization model DSL.
+-- Neovim wiring for the OpenFGA DSL. See docs/editor-integration.md.
 --
--- This directory is laid out as a plugin, so `parser/fga.so` and
--- `queries/**` are found by Neovim on their own once it is on the
--- runtimepath. What is left for setup() is filetype detection and starting
--- the language server.
---
--- Build the two artefacts first, from the repository root:
---
---     make
---
--- Then point a plugin manager at this directory; see README.md.
+-- Build the parser and the server first: `make` at the repository root.
 
 local M = {}
 
--- plugin_root is this file's grandparent: <repo>/nvim.
 local function plugin_root()
   return vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":h:h")
 end
 
--- Store tests and fga.mod stay YAML. Giving them a filetype of their own
--- would take them out of reach of every yaml plugin, to gain nothing: the
--- server is attached by filename below, and the DSL inside a `model: |` block
--- is highlighted by the injection query rather than by the filetype.
+-- Store tests and fga.mod stay YAML; they are attached by filename below.
 local yaml_patterns = {
   ".*%.fga%.ya?ml",
   ".*/fga%.mod",
@@ -40,8 +27,7 @@ local function register_filetypes()
   })
 end
 
--- matches_fga_file reports whether a buffer holds something the server can
--- answer for, by name rather than by filetype.
+-- matches_fga_file reports whether a buffer holds something the server answers for.
 local function matches_fga_file(name)
   if name == "" then
     return false
@@ -62,9 +48,6 @@ function M.setup(opts)
 
   register_filetypes()
 
-  -- Highlighting: the parser ships next to this file, so the only thing
-  -- missing is starting the tree for a filetype nvim-treesitter does not
-  -- know about.
   vim.api.nvim_create_autocmd("FileType", {
     group = vim.api.nvim_create_augroup("fga_treesitter", { clear = true }),
     pattern = "fga",
@@ -85,8 +68,6 @@ function M.setup(opts)
   local config = {
     cmd = cmd,
     filetypes = { "fga" },
-    -- fga.mod marks a modular model, and is what bounds name resolution.
-    -- Falling back to the repository keeps a single-file model working.
     root_markers = { "fga.mod", ".git" },
     settings = opts.settings or {},
   }
@@ -94,10 +75,7 @@ function M.setup(opts)
   vim.lsp.config("fga", config)
   vim.lsp.enable("fga")
 
-  -- Store tests and fga.mod keep the yaml filetype, so vim.lsp.enable will
-  -- not reach them; they are attached by name instead. vim.lsp.start reuses
-  -- an existing client whose config matches, so a model and its tests share
-  -- one server and therefore one view of the workspace.
+  -- vim.lsp.start reuses a matching client, so a model and its tests share one.
   vim.api.nvim_create_autocmd({ "BufReadPost", "BufNewFile" }, {
     group = vim.api.nvim_create_augroup("fga_lsp_yaml", { clear = true }),
     pattern = { "*.fga.yaml", "*.fga.yml", "fga.mod" },

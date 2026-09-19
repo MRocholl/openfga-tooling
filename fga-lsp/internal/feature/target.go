@@ -1,9 +1,3 @@
-// Package feature implements the language features the server exposes.
-//
-// Everything routes through Target: a position in any of the three file kinds
-// resolves to the same small vocabulary -- a type, a relation on some type, a
-// condition, a module, or a file reference -- and each feature then works in
-// those terms rather than in tree nodes and YAML scalars.
 package feature
 
 import (
@@ -31,14 +25,12 @@ const (
 type Target struct {
 	Kind TargetKind
 	Name string
-	// OwnerTypes are the types a relation may belong to. A relation reached
-	// through a tupleset can have several.
+	// OwnerTypes are the types a relation may belong to.
 	OwnerTypes []string
 	Range      protocol.Range
 	// Path is set for TargetFileRef.
 	Path string
-	// Declaration is true when the cursor sits on the defining occurrence
-	// rather than a use.
+	// Declaration is true when the cursor sits on the defining occurrence rather than a use.
 	Declaration bool
 }
 
@@ -55,9 +47,7 @@ func TargetAt(v *analysis.View, doc *analysis.Document, pos protocol.Position) T
 	return Target{}
 }
 
-// Symbols enumerates every resolvable name in doc, declarations and uses
-// alike. Position lookup, find-references and rename all read from this one
-// list, so they cannot disagree about what a given span means.
+// Symbols enumerates every resolvable name in doc, declarations and uses alike.
 func Symbols(v *analysis.View, doc *analysis.Document) []Target {
 	switch doc.Kind {
 	case analysis.KindModel:
@@ -147,8 +137,6 @@ func targetFromRef(scope analysis.Scope, enclosingType string, ref analysis.Ref)
 
 	return Target{}
 }
-
-// --------------------------------------------------------------- store tests
 
 func storeSymbols(doc *analysis.Document) []Target {
 	store := doc.Store
@@ -268,8 +256,7 @@ func appendTuples(out []Target, tuples []analysis.Tuple) []Target {
 	return out
 }
 
-// objectSymbol reads `document:roadmap`, narrowing the range to the type half
-// so a rename does not touch the id.
+// objectSymbol reads `document:roadmap`, narrowing the range to the type half so a rename does not touch the id.
 func objectSymbol(field analysis.Field) Target {
 	if !field.IsSet() {
 		return Target{}
@@ -287,8 +274,7 @@ func objectSymbol(field analysis.Field) Target {
 	}
 }
 
-// userSymbols reads `user:alice`, `user:*` and `team:eng#member`, yielding the
-// type and, where present, the userset relation.
+// userSymbols reads `user:alice`, `user:*` and `team:eng#member`, yielding the type and, where present, the...
 func userSymbols(field analysis.Field) []Target {
 	if !field.IsSet() {
 		return nil
@@ -319,8 +305,6 @@ func userSymbols(field analysis.Field) []Target {
 	return out
 }
 
-// ------------------------------------------------------------------ fga.mod
-
 func modSymbols(doc *analysis.Document) []Target {
 	if doc.Mod == nil {
 		return nil
@@ -334,10 +318,7 @@ func modSymbols(doc *analysis.Document) []Target {
 	return out
 }
 
-// ------------------------------------------------------------------ helpers
-
-// subRange narrows a single-line field range to the byte span [start, end) of
-// its value, converting to the UTF-16 offsets LSP counts in.
+// subRange narrows a single-line field range to the byte span [start, end) of its value, converting to the...
 func subRange(field analysis.Field, start, end int) protocol.Range {
 	if start < 0 || end > len(field.Value) || start > end {
 		return field.Range

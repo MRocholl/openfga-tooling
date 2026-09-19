@@ -9,9 +9,7 @@ import (
 	"github.com/mrocholl/fga-lsp/internal/analysis"
 )
 
-// Hover explains what is under the cursor. For a relation that means the
-// definition it resolves to, which in a modular model usually lives in a
-// different file from the one being read.
+// Hover explains what is under the cursor.
 func Hover(v *analysis.View, doc *analysis.Document, pos protocol.Position) *protocol.Hover {
 	target := TargetAt(v, doc, pos)
 	if !target.Found() {

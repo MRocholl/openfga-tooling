@@ -1,0 +1,17 @@
+{
+  "name": "tree-sitter-fga",
+  "version": "0.1.0",
+  "description": "Tree-sitter grammar for the OpenFGA authorization model DSL",
+  "license": "Apache-2.0",
+  "main": "bindings/node",
+  "types": "bindings/node",
+  "keywords": ["parser", "tree-sitter", "openfga", "fga", "authorization"],
+  "files": ["grammar.js", "tree-sitter.json", "binding.gyp", "prebuilds/**", "bindings/node/*", "queries/*", "src/**"],
+  "devDependencies": {
+    "tree-sitter-cli": "^0.26.11"
+  },
+  "scripts": {
+    "generate": "tree-sitter generate",
+    "test": "tree-sitter test"
+  }
+}

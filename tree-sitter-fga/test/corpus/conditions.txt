@@ -1,0 +1,65 @@
+================================================================================
+condition with scalar and container parameters
+================================================================================
+
+condition non_expired(grant_time: timestamp, tags: list<string>) {
+  grant_time < now && "red" in tags
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (condition
+    name: (identifier)
+    (parameter_list
+      (parameter
+        name: (identifier)
+        type: (parameter_type
+          (scalar_type)))
+      (parameter
+        name: (identifier)
+        type: (parameter_type
+          element: (scalar_type))))
+    body: (condition_body
+      (binary_expression
+        left: (binary_expression
+          left: (identifier)
+          right: (identifier))
+        right: (binary_expression
+          left: (string)
+          right: (identifier))))))
+
+================================================================================
+CEL member access is not one identifier
+================================================================================
+
+condition c(p: map<string>) {
+  // a CEL comment
+  p.value[0] == 1.5e3 ? !p.flag : null
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (condition
+    name: (identifier)
+    (parameter_list
+      (parameter
+        name: (identifier)
+        type: (parameter_type
+          element: (scalar_type))))
+    body: (condition_body
+      (comment)
+      (conditional
+        condition: (binary_expression
+          left: (index_expression
+            object: (member_expression
+              object: (identifier)
+              property: (identifier))
+            index: (number))
+          right: (number))
+        consequence: (unary_expression
+          operand: (member_expression
+            object: (identifier)
+            property: (identifier)))
+        alternative: (null)))))

@@ -1,0 +1,110 @@
+================================================================================
+type restrictions
+================================================================================
+
+type document
+  relations
+    define viewer: [user, user:*, team#member, user with non_expired, user:* with $expression]
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (type_definition
+    name: (identifier)
+    (relations_block
+      (relation_definition
+        name: (identifier)
+        value: (direct_assignment
+          (type_restriction
+            type: (identifier))
+          (type_restriction
+            type: (identifier)
+            (wildcard))
+          (type_restriction
+            type: (identifier)
+            (relation_suffix
+              relation: (identifier)))
+          (type_restriction
+            type: (identifier)
+            (condition_suffix
+              condition: (identifier)))
+          (type_restriction
+            type: (identifier)
+            (wildcard)
+            (condition_suffix
+              condition: (inline_expression))))))))
+
+================================================================================
+union, intersection, exclusion
+================================================================================
+
+type document
+  relations
+    define a: [user] or owner or editor
+    define b: viewer and member from organization
+    define c: active but not inactive
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (type_definition
+    name: (identifier)
+    (relations_block
+      (relation_definition
+        name: (identifier)
+        value: (union
+          (direct_assignment
+            (type_restriction
+              type: (identifier)))
+          (computed_relation
+            relation: (identifier))
+          (computed_relation
+            relation: (identifier))))
+      (relation_definition
+        name: (identifier)
+        value: (intersection
+          (computed_relation
+            relation: (identifier))
+          (tupleset_relation
+            relation: (identifier)
+            tupleset: (identifier))))
+      (relation_definition
+        name: (identifier)
+        value: (exclusion
+          (computed_relation
+            relation: (identifier))
+          (but_not)
+          (computed_relation
+            relation: (identifier)))))))
+
+================================================================================
+nested grouping
+================================================================================
+
+type document
+  relations
+    define a: (owner or editor) and (member from organization but not banned)
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (type_definition
+    name: (identifier)
+    (relations_block
+      (relation_definition
+        name: (identifier)
+        value: (intersection
+          (grouping
+            (union
+              (computed_relation
+                relation: (identifier))
+              (computed_relation
+                relation: (identifier))))
+          (grouping
+            (exclusion
+              (tupleset_relation
+                relation: (identifier)
+                tupleset: (identifier))
+              (but_not)
+              (computed_relation
+                relation: (identifier)))))))))

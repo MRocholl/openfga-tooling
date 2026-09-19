@@ -1,0 +1,31 @@
+{
+  "$schema": "https://tree-sitter.github.io/tree-sitter/assets/schemas/config.schema.json",
+  "grammars": [
+    {
+      "name": "fga",
+      "camelcase": "Fga",
+      "scope": "source.fga",
+      "path": ".",
+      "file-types": ["fga"],
+      "highlights": ["queries/highlights.scm"],
+      "locals": ["queries/locals.scm"],
+      "injection-regex": "^fga$"
+    }
+  ],
+  "metadata": {
+    "version": "0.1.0",
+    "license": "Apache-2.0",
+    "description": "Tree-sitter grammar for the OpenFGA authorization model DSL",
+    "authors": [{ "name": "Moritz Rocholl" }]
+  },
+  "bindings": {
+    "c": true,
+    "go": true,
+    "node": true,
+    "python": false,
+    "rust": false,
+    "swift": false,
+    "kotlin": false,
+    "zig": false
+  }
+}

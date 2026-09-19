@@ -1,0 +1,81 @@
+================================================================================
+model header
+================================================================================
+
+model
+  schema 1.1
+
+type user
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (model_header
+    version: (schema_version))
+  (type_definition
+    name: (identifier)))
+
+================================================================================
+module header
+================================================================================
+
+module core
+
+type user
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (module_header
+    name: (identifier))
+  (type_definition
+    name: (identifier)))
+
+================================================================================
+extend type
+================================================================================
+
+module billing
+
+extend type organization
+  relations
+    define can_administrate_billing: laboratory_administrate_billing
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (module_header
+    name: (identifier))
+  (type_definition
+    name: (identifier)
+    (relations_block
+      (relation_definition
+        name: (identifier)
+        value: (computed_relation
+          relation: (identifier))))))
+
+================================================================================
+comments are not type restrictions
+================================================================================
+
+# leading comment
+type role
+  relations
+    # a role is assigned to active users only
+    define assignee: [user#active]
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (comment)
+  (type_definition
+    name: (identifier)
+    (relations_block
+      (comment)
+      (relation_definition
+        name: (identifier)
+        value: (direct_assignment
+          (type_restriction
+            type: (identifier)
+            (relation_suffix
+              relation: (identifier))))))))

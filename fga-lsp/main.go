@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"runtime/debug"
+	"strings"
 
 	"github.com/tliron/commonlog"
 	glspserver "github.com/tliron/glsp/server"
@@ -34,6 +35,15 @@ func main() {
 			usage()
 
 			return
+		}
+
+		// Anything that is not a flag was meant as a subcommand. Falling
+		// through would start the language server, which then waits on stdin
+		// for an LSP client that is never coming, and looks like a hang.
+		if !strings.HasPrefix(os.Args[1], "-") {
+			fmt.Fprintf(os.Stderr, "fga-lsp: unknown command %q\n\n", os.Args[1])
+			usage()
+			os.Exit(2)
 		}
 	}
 

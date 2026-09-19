@@ -36,10 +36,56 @@ type      -> what it can do
 workspace -> what is wrong with it
 ```
 
-Output is plain text, not JSON. Paths are relative to the workspace root and
-lines are one-based, so an agent can quote a location straight into a reply or
-paste it into an editor. Excerpts come with the answer, which saves the agent
-a follow-up read of the file.
+Paths are relative to the workspace root and lines are one-based, so an agent
+can quote a location straight into a reply or paste it into an editor.
+
+## Formats
+
+`-format` picks the shape. MCP always uses `agent`, since nothing there is
+read by a person.
+
+**`agent`** is one finding per line, `path:line:column: kind: text` -- what a
+compiler emits, so every editor, `grep` and agent already parses it:
+
+```
+laboratory.fga:21:12: definition: define laboratory_access: [role#assignee]
+integrations.fga:13:41: use: define can_read_kvdt_configuration: laboratory_access
+account.fga.yaml:32:15: test: relation: laboratory_access
+31 references in 18 files
+```
+
+That flatness is the point. The text form groups by file and caps the lines
+per file, which reads well and filters badly; the agent form sorts by path and
+line so two runs are diffable, and leaves the filtering to the caller:
+
+```sh
+fga-lsp references -format agent 'organization#laboratory_access' | grep ': definition:'
+```
+
+The `kind` is what an agent needs before it edits: a `definition` is the thing
+itself, a `use` is a model that depends on it, a `test` is an assertion that
+will fail if it changes.
+
+**`json`** is the same data structured, for a caller that would otherwise
+parse the text.
+
+**`text`** is the default, for a person: grouped by file, with excerpts and a
+caret under the offending name.
+
+## Completeness
+
+The agent and JSON forms return **everything** by default. A truncated
+reference list is worse than a long one when the question is whether a
+relation is safe to remove, so cutting it is opt-in through `-limit`, and what
+was left out is stated:
+
+```
+31 references in 18 files, 25 omitted by --limit
+```
+
+The text form does abbreviate, because a person scanning a long list wants the
+shape rather than every line; past roughly a hundred hits it collapses to
+per-file counts.
 
 ## Queries
 
@@ -52,8 +98,9 @@ a follow-up read of the file.
 | `references <name>` | `fga_references` | what uses this name, models and store tests alike |
 | `search <query>` | `fga_search` | which names look like this |
 
-Every shell command takes `-C <dir>` to pick the workspace, defaulting to the
-current directory. `check` exits 1 when it reports something, 0 when clean.
+Every shell command takes `-C <dir>` to pick the workspace (default: the
+current directory), `-format text|agent|json`, and `-limit N` to cap results.
+`check` exits 1 when it reports something, 0 when clean.
 
 ## Compaction
 

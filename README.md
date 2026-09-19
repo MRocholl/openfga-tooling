@@ -21,6 +21,7 @@ Beyond editors, the same analysis is served to agents:
 ```sh
 fga-lsp                      # LSP over stdin/stdout, for an editor
 fga-lsp check -C <dir>       # a shell command, for an agent or for CI
+fga-lsp references -format agent 'document#can_view'   # one finding per line
 fga-lsp mcp <dir>            # MCP, for a host without a shell
 ```
 

@@ -14,6 +14,18 @@ schema 1.2. This repository covers both gaps in a form any editor can use.
 | [`tree-sitter-fga/`](tree-sitter-fga) | the grammar: parsing and highlighting |
 | [`fga-lsp/`](fga-lsp) | the language server: diagnostics, navigation, completion, rename, formatting |
 | [`nvim/`](nvim) | a Neovim plugin that wires the two together |
+| [`editors/vscode/`](editors/vscode) | a VS Code extension |
+
+Beyond editors, the same analysis is served to agents:
+
+```sh
+fga-lsp             # LSP over stdin/stdout, for an editor
+fga-lsp mcp <dir>   # MCP over stdin/stdout, for Claude Code and friends
+```
+
+The agent tools are name-addressed rather than position-addressed, because an
+agent has `document#can_view`, not a line and a column. See
+[docs/agent-api.md](docs/agent-api.md).
 
 ## Build
 

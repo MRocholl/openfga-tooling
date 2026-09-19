@@ -9,5 +9,6 @@ comments, so it can be read whole and stays in one place when the code moves.
 | [diagnostics.md](diagnostics.md) | the three diagnostic passes, which checks are ours, and why the wording is upstream's |
 | [resolution.md](resolution.md) | what bounds a name, how the index stays complete, and the lifetime rules on a parse tree |
 | [store-tests.md](store-tests.md) | `.fga.yaml` handling, inline models, and how ranges are found in YAML |
+| [agent-api.md](agent-api.md) | the MCP tools, why they are name-addressed, and how long answers are compacted |
 | [editor-integration.md](editor-integration.md) | the Neovim plugin layout, filetype choices, and the injection query |
 | [versioning.md](versioning.md) | why the dependency pins track the `fga` CLI, and what to do when the corpus disagrees |

@@ -1,10 +1,7 @@
 package server
 
 import (
-	"io/fs"
 	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/tliron/glsp"
 	protocol "github.com/tliron/glsp/protocol_3_16"
@@ -61,7 +58,7 @@ func (s *Server) Handler() *protocol.Handler {
 
 func (s *Server) initialize(_ *glsp.Context, params *protocol.InitializeParams) (any, error) {
 	for _, root := range roots(params) {
-		s.scan(root)
+		analysis.Scan(s.index, root)
 	}
 
 	sync := protocol.TextDocumentSyncKindFull
@@ -121,45 +118,6 @@ func roots(params *protocol.InitializeParams) []string {
 	}
 
 	return nil
-}
-
-// scan loads every model, store test and fga.mod under root.
-func (s *Server) scan(root string) {
-	_ = filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			return nil //nolint:nilerr // an unreadable subtree is not fatal
-		}
-
-		if entry.IsDir() {
-			if skipDir(entry.Name()) {
-				return fs.SkipDir
-			}
-
-			return nil
-		}
-
-		if analysis.KindOf(path) == analysis.KindUnknown {
-			return nil
-		}
-
-		content, err := os.ReadFile(path) //nolint:gosec // paths come from the workspace root
-		if err != nil {
-			return nil //nolint:nilerr
-		}
-
-		s.index.Put(analysis.URIFromPath(path), 0, content)
-
-		return nil
-	})
-}
-
-func skipDir(name string) bool {
-	switch name {
-	case ".git", "node_modules", "vendor", ".venv", "target", "dist", "build":
-		return true
-	}
-
-	return strings.HasPrefix(name, ".") && name != "."
 }
 
 func (s *Server) didOpen(ctx *glsp.Context, params *protocol.DidOpenTextDocumentParams) error {

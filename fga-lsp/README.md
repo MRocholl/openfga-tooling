@@ -11,6 +11,12 @@ fga-lsp                            # speaks LSP over stdin/stdout
 `-log <file>` writes logs somewhere; without it they are discarded, because
 stdout carries the protocol. `-tcp <addr>` serves over TCP instead.
 
+```sh
+fga-lsp mcp <dir>   # the same analysis as MCP tools, for an agent
+```
+
+See [../docs/agent-api.md](../docs/agent-api.md).
+
 ## What it does
 
 **Diagnostics** in three passes, cheapest first, each gating the next: the

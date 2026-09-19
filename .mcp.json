@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "fga": {
+      "command": "./bin/fga-lsp",
+      "args": ["mcp", "."]
+    }
+  }
+}

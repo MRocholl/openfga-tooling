@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -11,10 +12,17 @@ import (
 
 	_ "github.com/tliron/commonlog/simple"
 
+	"github.com/MRocholl/openfga-tooling/fga-lsp/internal/agent"
 	"github.com/MRocholl/openfga-tooling/fga-lsp/internal/server"
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "mcp" {
+		runMCP(os.Args[2:])
+
+		return
+	}
+
 	var (
 		showVersion = flag.Bool("version", false, "print the version and exit")
 		logPath     = flag.String("log", "", "write logs to this file (default: discard)")
@@ -69,4 +77,31 @@ func buildVersion() string {
 	}
 
 	return info.Main.Version
+}
+
+// runMCP serves the agent-facing tools over stdio, rooted at the given
+// directory or the working directory.
+func runMCP(args []string) {
+	flags := flag.NewFlagSet("mcp", flag.ExitOnError)
+	logPath := flags.String("log", "", "write logs to this file (default: discard)")
+
+	_ = flags.Parse(args)
+
+	root := "."
+	if flags.NArg() > 0 {
+		root = flags.Arg(0)
+	}
+
+	configureLogging(*logPath, 0)
+
+	workspace, err := agent.Open(root)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, server.Name+": "+err.Error())
+		os.Exit(1)
+	}
+
+	if err := agent.ServeMCP(context.Background(), workspace, buildVersion()); err != nil {
+		fmt.Fprintln(os.Stderr, server.Name+": "+err.Error())
+		os.Exit(1)
+	}
 }

@@ -1,0 +1,62 @@
+{
+  "name": "fga-lsp-vscode",
+  "displayName": "OpenFGA",
+  "description": "Language support for OpenFGA authorization models, store tests and fga.mod",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "publisher": "mrocholl",
+  "repository": { "type": "git", "url": "https://github.com/MRocholl/openfga-tooling" },
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["Programming Languages", "Linters"],
+  "main": "./src/extension.js",
+  "activationEvents": ["onLanguage:yaml", "workspaceContains:**/*.fga"],
+  "contributes": {
+    "languages": [
+      {
+        "id": "fga",
+        "aliases": ["OpenFGA", "fga"],
+        "extensions": [".fga"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "fga",
+        "scopeName": "source.fga",
+        "path": "./syntaxes/fga.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "title": "OpenFGA",
+      "properties": {
+        "fga.server.path": {
+          "type": "string",
+          "default": "fga-lsp",
+          "description": "Path to the fga-lsp binary. Relative paths resolve against the workspace root."
+        },
+        "fga.server.arguments": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Extra arguments for the server, for example [\"-log\", \"/tmp/fga-lsp.log\"]."
+        },
+        "fga.trace.server": {
+          "type": "string",
+          "enum": ["off", "messages", "verbose"],
+          "default": "off",
+          "description": "Trace the communication with the language server."
+        }
+      }
+    }
+  },
+  "dependencies": {
+    "vscode-languageclient": "9.0.1"
+  },
+  "devDependencies": {
+    "@types/vscode": "1.85.0",
+    "@vscode/vsce": "3.2.2"
+  },
+  "scripts": {
+    "package": "vsce package"
+  }
+}

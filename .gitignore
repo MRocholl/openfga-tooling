@@ -2,3 +2,6 @@
 /bin/
 /nvim/parser/
 /nvim/queries/
+editors/vscode/node_modules/
+editors/vscode/*.vsix
+editors/vscode/package-lock.json

@@ -1,0 +1,101 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "OpenFGA",
+  "scopeName": "source.fga",
+  "patterns": [
+    { "include": "#comment" },
+    { "include": "#condition" },
+    { "include": "#declaration" },
+    { "include": "#relation" }
+  ],
+  "repository": {
+    "comment": {
+      "match": "#.*$",
+      "name": "comment.line.number-sign.fga"
+    },
+    "declaration": {
+      "patterns": [
+        {
+          "match": "^\\s*(model|schema)\\b\\s*([0-9]+\\.[0-9]+)?",
+          "captures": {
+            "1": { "name": "keyword.control.fga" },
+            "2": { "name": "constant.numeric.fga" }
+          }
+        },
+        {
+          "match": "^\\s*(module)\\s+([A-Za-z_][A-Za-z0-9_./-]*)",
+          "captures": {
+            "1": { "name": "keyword.control.import.fga" },
+            "2": { "name": "entity.name.namespace.fga" }
+          }
+        },
+        {
+          "match": "^\\s*(extend\\s+)?(type)\\s+([A-Za-z_][A-Za-z0-9_./-]*)",
+          "captures": {
+            "1": { "name": "keyword.control.fga" },
+            "2": { "name": "keyword.control.fga" },
+            "3": { "name": "entity.name.type.fga" }
+          }
+        },
+        { "match": "^\\s*(relations)\\s*$", "name": "keyword.control.fga" }
+      ]
+    },
+    "relation": {
+      "begin": "^\\s*(define)\\s+([A-Za-z_][A-Za-z0-9_./-]*)\\s*(:)",
+      "beginCaptures": {
+        "1": { "name": "keyword.control.fga" },
+        "2": { "name": "entity.name.function.fga" },
+        "3": { "name": "punctuation.separator.fga" }
+      },
+      "end": "$",
+      "patterns": [
+        { "include": "#comment" },
+        { "include": "#restriction" },
+        { "match": "\\b(or|and|but\\s+not|from|with)\\b", "name": "keyword.operator.fga" },
+        { "match": "\\$expression\\b", "name": "support.function.fga" },
+        { "match": "[A-Za-z_][A-Za-z0-9_./-]*", "name": "variable.other.member.fga" }
+      ]
+    },
+    "restriction": {
+      "begin": "\\[",
+      "end": "\\]",
+      "beginCaptures": { "0": { "name": "punctuation.definition.fga" } },
+      "endCaptures": { "0": { "name": "punctuation.definition.fga" } },
+      "patterns": [
+        { "match": "\\bwith\\b", "name": "keyword.operator.fga" },
+        { "match": "\\*", "name": "constant.language.fga" },
+        {
+          "match": "([A-Za-z_][A-Za-z0-9_./-]*)(#)([A-Za-z_][A-Za-z0-9_./-]*)",
+          "captures": {
+            "1": { "name": "entity.name.type.fga" },
+            "2": { "name": "punctuation.separator.fga" },
+            "3": { "name": "variable.other.member.fga" }
+          }
+        },
+        { "match": "[A-Za-z_][A-Za-z0-9_./-]*", "name": "entity.name.type.fga" }
+      ]
+    },
+    "condition": {
+      "begin": "^\\s*(condition)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(\\()",
+      "beginCaptures": {
+        "1": { "name": "keyword.control.fga" },
+        "2": { "name": "entity.name.function.fga" },
+        "3": { "name": "punctuation.definition.fga" }
+      },
+      "end": "\\}",
+      "endCaptures": { "0": { "name": "punctuation.definition.fga" } },
+      "patterns": [
+        { "match": "//.*$", "name": "comment.line.double-slash.fga" },
+        {
+          "match": "\\b(bool|string|int|uint|double|duration|timestamp|ipaddress|map|list)\\b",
+          "name": "support.type.fga"
+        },
+        { "match": "\\b(true|false|null)\\b", "name": "constant.language.fga" },
+        { "match": "\\bin\\b", "name": "keyword.operator.fga" },
+        { "match": "\"[^\"]*\"|'[^']*'", "name": "string.quoted.fga" },
+        { "match": "\\b[0-9]+(\\.[0-9]+)?\\b", "name": "constant.numeric.fga" },
+        { "match": "[A-Za-z_][A-Za-z0-9_]*(?=\\s*:)", "name": "variable.parameter.fga" }
+      ]
+    }
+  }
+}

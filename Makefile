@@ -41,6 +41,10 @@ test:
 	cd $(SERVER) && go test ./...
 	cd $(SERVER) && go vet ./...
 
+.PHONY: vscode
+vscode: bin/$(SERVER)
+	cd editors/vscode && npm install && npx vsce package --allow-missing-repository --skip-license
+
 .PHONY: clean
 clean:
-	rm -rf bin nvim/parser nvim/queries/fga nvim/queries/yaml
+	rm -rf bin nvim/parser nvim/queries/fga nvim/queries/yaml editors/vscode/*.vsix
